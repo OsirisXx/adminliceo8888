@@ -33,9 +33,8 @@ const Layout = ({ children }) => {
   const publicLinks = user
     ? []
     : [
-        { path: "/", label: "Home", icon: Home },
-        { path: "/track", label: "Track Status", icon: Search },
-      ];
+      { path: "/track", label: "Track Status", icon: Search },
+    ];
 
   const superAdminLinks = [
     { path: "/super-admin", label: "Super Admin", icon: Shield },
@@ -180,11 +179,10 @@ const Layout = ({ children }) => {
                 <Link
                   key={path}
                   to={path}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                    isActive(path)
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${isActive(path)
                       ? "bg-gold-500 text-maroon-800 font-semibold"
                       : "hover:bg-maroon-700 text-white"
-                  }`}
+                    }`}
                 >
                   <Icon size={18} />
                   <span>{label}</span>
@@ -197,11 +195,10 @@ const Layout = ({ children }) => {
                   <Link
                     key={path}
                     to={path}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                      isActive(path)
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${isActive(path)
                         ? "bg-gold-500 text-maroon-800 font-semibold"
                         : "hover:bg-maroon-700 text-white"
-                    }`}
+                      }`}
                   >
                     <Icon size={18} />
                     <span>{label}</span>
@@ -214,11 +211,10 @@ const Layout = ({ children }) => {
                   <Link
                     key={path}
                     to={path}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                      isActive(path)
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${isActive(path)
                         ? "bg-gold-500 text-maroon-800 font-semibold"
                         : "hover:bg-maroon-700 text-white"
-                    }`}
+                      }`}
                   >
                     <Icon size={18} />
                     <span>{label}</span>
@@ -231,11 +227,10 @@ const Layout = ({ children }) => {
                   <Link
                     key={path}
                     to={path}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                      isActive(path)
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${isActive(path)
                         ? "bg-gold-500 text-maroon-800 font-semibold"
                         : "hover:bg-maroon-700 text-white"
-                    }`}
+                      }`}
                   >
                     <Icon size={18} />
                     <span>{label}</span>
@@ -307,11 +302,10 @@ const Layout = ({ children }) => {
               ) : (
                 <Link
                   to="/login"
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                    isActive("/login")
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${isActive("/login")
                       ? "bg-gold-500 text-maroon-800 font-semibold"
                       : "hover:bg-maroon-700 text-white border border-gold-500"
-                  }`}
+                    }`}
                 >
                   <span>Staff Login</span>
                 </Link>
@@ -337,11 +331,10 @@ const Layout = ({ children }) => {
                   key={path}
                   to={path}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                    isActive(path)
+                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive(path)
                       ? "bg-gold-500 text-maroon-800 font-semibold"
                       : "hover:bg-maroon-700 text-white"
-                  }`}
+                    }`}
                 >
                   <Icon size={20} />
                   <span>{label}</span>
@@ -355,11 +348,10 @@ const Layout = ({ children }) => {
                     key={path}
                     to={path}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                      isActive(path)
+                    className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive(path)
                         ? "bg-gold-500 text-maroon-800 font-semibold"
                         : "hover:bg-maroon-700 text-white"
-                    }`}
+                      }`}
                   >
                     <Icon size={20} />
                     <span>{label}</span>
@@ -373,11 +365,10 @@ const Layout = ({ children }) => {
                     key={path}
                     to={path}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                      isActive(path)
+                    className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive(path)
                         ? "bg-gold-500 text-maroon-800 font-semibold"
                         : "hover:bg-maroon-700 text-white"
-                    }`}
+                      }`}
                   >
                     <Icon size={20} />
                     <span>{label}</span>
@@ -391,11 +382,10 @@ const Layout = ({ children }) => {
                     key={path}
                     to={path}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                      isActive(path)
+                    className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive(path)
                         ? "bg-gold-500 text-maroon-800 font-semibold"
                         : "hover:bg-maroon-700 text-white"
-                    }`}
+                      }`}
                   >
                     <Icon size={20} />
                     <span>{label}</span>
