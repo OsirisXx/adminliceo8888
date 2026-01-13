@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  sendTicketVerifiedEmail,
+  sendTicketRejectedEmail,
+} from "../lib/resend";
+import {
   Shield,
   CheckCircle,
   XCircle,
@@ -126,10 +130,22 @@ const AdminDashboard = () => {
         complaint_id: selectedComplaint.id,
         action: "Complaint Verified",
         performed_by: user.id,
-        details: `Assigned to ${
-          departments.find((d) => d.value === selectedDepartment)?.label
-        }. ${remarks ? `Remarks: ${remarks}` : ""}`,
+        details: `Assigned to ${departments.find((d) => d.value === selectedDepartment)?.label
+          }. ${remarks ? `Remarks: ${remarks}` : ""}`,
       });
+
+      // Send email notification if user provided email
+      if (selectedComplaint.email) {
+        const departmentLabel =
+          departments.find((d) => d.value === selectedDepartment)?.label ||
+          selectedDepartment;
+        await sendTicketVerifiedEmail({
+          to: selectedComplaint.email,
+          referenceNumber: selectedComplaint.reference_number,
+          department: departmentLabel,
+          adminRemarks: remarks,
+        });
+      }
 
       setShowModal(false);
       setSelectedComplaint(null);
@@ -170,6 +186,15 @@ const AdminDashboard = () => {
         performed_by: user.id,
         details: `Reason: ${remarks}`,
       });
+
+      // Send email notification if user provided email
+      if (selectedComplaint.email) {
+        await sendTicketRejectedEmail({
+          to: selectedComplaint.email,
+          referenceNumber: selectedComplaint.reference_number,
+          reason: remarks,
+        });
+      }
 
       setShowModal(false);
       setSelectedComplaint(null);
@@ -529,9 +554,8 @@ const AdminDashboard = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-500">Current Status</span>
                   <span
-                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${
-                      statusConfig[selectedComplaint.status]?.color
-                    }`}
+                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${statusConfig[selectedComplaint.status]?.color
+                      }`}
                   >
                     {statusConfig[selectedComplaint.status]?.label}
                   </span>
@@ -711,42 +735,42 @@ const AdminDashboard = () => {
                 {/* Show resolution for resolved complaints */}
                 {(selectedComplaint.resolution_details ||
                   selectedComplaint.resolution_image_url) && (
-                  <div className="border-t border-gray-100 pt-6 space-y-4">
-                    {selectedComplaint.resolution_details && (
-                      <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                        <p className="text-sm text-green-700 mb-1">
-                          Resolution Details
-                        </p>
-                        <p className="text-green-900">
-                          {selectedComplaint.resolution_details}
-                        </p>
-                      </div>
-                    )}
-                    {selectedComplaint.resolution_image_url && (
-                      <div>
-                        <p className="text-sm text-gray-500 mb-2">
-                          Resolution Proof
-                        </p>
-                        <div className="bg-green-50 rounded-xl p-4">
-                          <img
-                            src={selectedComplaint.resolution_image_url}
-                            alt="Resolution Proof"
-                            className="max-h-64 rounded-lg border border-green-200 mb-2"
-                          />
-                          <a
-                            href={selectedComplaint.resolution_image_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center space-x-2 text-green-700 hover:text-green-600 text-sm"
-                          >
-                            <Eye size={18} />
-                            <span>View Full Image</span>
-                          </a>
+                    <div className="border-t border-gray-100 pt-6 space-y-4">
+                      {selectedComplaint.resolution_details && (
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                          <p className="text-sm text-green-700 mb-1">
+                            Resolution Details
+                          </p>
+                          <p className="text-green-900">
+                            {selectedComplaint.resolution_details}
+                          </p>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                      {selectedComplaint.resolution_image_url && (
+                        <div>
+                          <p className="text-sm text-gray-500 mb-2">
+                            Resolution Proof
+                          </p>
+                          <div className="bg-green-50 rounded-xl p-4">
+                            <img
+                              src={selectedComplaint.resolution_image_url}
+                              alt="Resolution Proof"
+                              className="max-h-64 rounded-lg border border-green-200 mb-2"
+                            />
+                            <a
+                              href={selectedComplaint.resolution_image_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-2 text-green-700 hover:text-green-600 text-sm"
+                            >
+                              <Eye size={18} />
+                              <span>View Full Image</span>
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
               </div>
             </div>
           </div>

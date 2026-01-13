@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  sendTicketInProgressEmail,
+  sendTicketResolvedEmail,
+} from "../lib/resend";
+import {
   Building2,
   CheckCircle,
   Clock,
@@ -119,6 +123,18 @@ const DepartmentDashboard = () => {
           : "Department started working on the complaint",
       });
 
+      // Send email notification if user provided email
+      if (selectedComplaint.email) {
+        const deptLabel =
+          departmentLabels[userDepartment] || userDepartment;
+        await sendTicketInProgressEmail({
+          to: selectedComplaint.email,
+          referenceNumber: selectedComplaint.reference_number,
+          department: deptLabel,
+          remarks: departmentRemarks,
+        });
+      }
+
       setShowModal(false);
       setSelectedComplaint(null);
       setDepartmentRemarks("");
@@ -167,9 +183,8 @@ const DepartmentDashboard = () => {
       // Upload resolution image
       let resolutionImageUrl = null;
       const fileExt = resolutionImage.name.split(".").pop();
-      const fileName = `resolution-${
-        selectedComplaint.reference_number
-      }-${Date.now()}.${fileExt}`;
+      const fileName = `resolution-${selectedComplaint.reference_number
+        }-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("attachments")
@@ -204,6 +219,16 @@ const DepartmentDashboard = () => {
         performed_by: user.id,
         details: `Resolution: ${resolutionDetails}`,
       });
+
+      // Send email notification if user provided email
+      if (selectedComplaint.email) {
+        await sendTicketResolvedEmail({
+          to: selectedComplaint.email,
+          referenceNumber: selectedComplaint.reference_number,
+          resolutionDetails: resolutionDetails,
+          departmentRemarks: departmentRemarks,
+        });
+      }
 
       setShowModal(false);
       setSelectedComplaint(null);
@@ -554,9 +579,8 @@ const DepartmentDashboard = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-500">Current Status</span>
                   <span
-                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${
-                      statusConfig[selectedComplaint.status]?.color
-                    }`}
+                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${statusConfig[selectedComplaint.status]?.color
+                      }`}
                   >
                     {statusConfig[selectedComplaint.status]?.label}
                   </span>
@@ -721,11 +745,10 @@ const DepartmentDashboard = () => {
                         />
                         <label
                           htmlFor="resolutionImage"
-                          className={`flex items-center justify-center space-x-2 w-full py-4 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
-                            resolutionImage
+                          className={`flex items-center justify-center space-x-2 w-full py-4 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${resolutionImage
                               ? "border-green-400 bg-green-50"
                               : "border-gray-300 hover:border-green-400 hover:bg-gray-50"
-                          }`}
+                            }`}
                         >
                           <Upload
                             size={20}
