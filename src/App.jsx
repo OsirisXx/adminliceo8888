@@ -8,6 +8,7 @@ import TrackComplaint from "./pages/TrackComplaint";
 import AdminDashboard from "./pages/AdminDashboard";
 import DepartmentDashboard from "./pages/DepartmentDashboard";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import TicketActivity from "./pages/TicketActivity";
 
 function App() {
   return (
@@ -40,6 +41,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["super_admin"]}>
                   <SuperAdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ticket/:referenceNumber"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "department"]}>
+                  <TicketActivity />
                 </ProtectedRoute>
               }
             />

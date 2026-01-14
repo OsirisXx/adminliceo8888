@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 
 const DepartmentDashboard = () => {
+  const navigate = useNavigate();
   const { user, userDepartment } = useAuth();
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -168,35 +170,27 @@ const DepartmentDashboard = () => {
   };
 
   const handleResolve = async () => {
-    if (!resolutionDetails) {
-      alert("Please provide resolution details");
-      return;
-    }
-
-    if (!resolutionImage) {
-      alert("Please upload an image as proof of resolution");
-      return;
-    }
-
     setActionLoading(true);
     try {
-      // Upload resolution image
+      // Upload resolution image if provided
       let resolutionImageUrl = null;
-      const fileExt = resolutionImage.name.split(".").pop();
-      const fileName = `resolution-${selectedComplaint.reference_number
-        }-${Date.now()}.${fileExt}`;
+      if (resolutionImage) {
+        const fileExt = resolutionImage.name.split(".").pop();
+        const fileName = `resolution-${selectedComplaint.reference_number
+          }-${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("attachments")
-        .upload(fileName, resolutionImage);
+        const { error: uploadError } = await supabase.storage
+          .from("attachments")
+          .upload(fileName, resolutionImage);
 
-      if (uploadError) {
-        console.error("Upload error:", uploadError);
-      } else {
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("attachments").getPublicUrl(fileName);
-        resolutionImageUrl = publicUrl;
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+        } else {
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("attachments").getPublicUrl(fileName);
+          resolutionImageUrl = publicUrl;
+        }
       }
 
       const { error: updateError } = await supabase
@@ -217,7 +211,7 @@ const DepartmentDashboard = () => {
         complaint_id: selectedComplaint.id,
         action: "Complaint Resolved",
         performed_by: user.id,
-        details: `Resolution: ${resolutionDetails}`,
+        details: resolutionDetails ? `Resolution: ${resolutionDetails}` : "Complaint marked as resolved",
       });
 
       // Send email notification if user provided email
@@ -529,16 +523,25 @@ const DepartmentDashboard = () => {
                       <MessageSquare size={16} />
                       <span>Complaint #{complaint.id}</span>
                     </div>
-                    <button
-                      onClick={() => {
-                        setSelectedComplaint(complaint);
-                        setShowModal(true);
-                      }}
-                      className="inline-flex items-center space-x-2 px-4 py-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors text-sm font-medium w-full sm:w-auto justify-center"
-                    >
-                      <Eye size={16} />
-                      <span>View Details</span>
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={() => navigate(`/ticket/${complaint.reference_number}`)}
+                        className="inline-flex items-center space-x-2 px-4 py-2 border border-maroon-800 text-maroon-800 rounded-lg hover:bg-maroon-50 transition-colors text-sm font-medium w-full sm:w-auto justify-center"
+                      >
+                        <MessageSquare size={16} />
+                        <span>View Activity</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedComplaint(complaint);
+                          setShowModal(true);
+                        }}
+                        className="inline-flex items-center space-x-2 px-4 py-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors text-sm font-medium w-full sm:w-auto justify-center"
+                      >
+                        <Eye size={16} />
+                        <span>View Details</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -713,7 +716,7 @@ const DepartmentDashboard = () => {
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Resolution Details{" "}
-                        <span className="text-red-500">*</span>
+                        <span className="text-gray-400">(optional)</span>
                       </label>
                       <textarea
                         value={resolutionDetails}
@@ -728,7 +731,7 @@ const DepartmentDashboard = () => {
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Resolution Proof Image{" "}
-                        <span className="text-red-500">*</span>
+                        <span className="text-gray-400">(optional)</span>
                       </label>
                       {imageError && (
                         <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg">
@@ -767,7 +770,7 @@ const DepartmentDashboard = () => {
                           >
                             {resolutionImage
                               ? resolutionImage.name
-                              : "Upload proof of resolution (required)"}
+                              : "Upload proof of resolution (optional)"}
                           </span>
                         </label>
                       </div>

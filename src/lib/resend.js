@@ -380,7 +380,59 @@ export const sendTicketInProgressEmail = async ({
 };
 
 /**
- * Send ticket resolved email
+ * Send ticket status changed email (admin override)
+ */
+export const sendTicketStatusChangedEmail = async ({
+  to,
+  referenceNumber,
+  oldStatus,
+  newStatus,
+  remarks,
+}) => {
+  const html = generateEmailTemplate({
+    title: "Complaint Status Updated",
+    greeting: "Your complaint status has been updated by the administrator.",
+    content: `
+      <p style="margin: 0 0 15px 0; color: #555; font-size: 15px; line-height: 1.6;">
+        The status of your complaint has been changed by the VP Admin.
+      </p>
+      
+      ${ticketReferenceBox(referenceNumber)}
+      
+      <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
+        <p style="margin: 0 0 10px 0; color: #333; font-size: 14px;">
+          <strong>Previous Status:</strong> ${oldStatus}
+        </p>
+        <p style="margin: 0; color: #333; font-size: 14px;">
+          <strong>New Status:</strong> ${newStatus}
+        </p>
+        ${remarks
+        ? `
+          <p style="margin: 15px 0 0 0; color: #666; font-size: 14px;">
+            <strong>Remarks:</strong><br>
+            ${remarks}
+          </p>
+        `
+        : ""
+      }
+      </div>
+      
+      <p style="margin: 20px 0 0 0; color: #555; font-size: 14px;">
+        If you have any questions about this status change, please contact the 
+        administration office.
+      </p>
+    `,
+  });
+
+  return sendEmail({
+    to,
+    subject: `[Liceo 8888] Status Updated - ${referenceNumber}`,
+    html,
+  });
+};
+
+/**
+ * Send ticket resolved email with verification link
  */
 export const sendTicketResolvedEmail = async ({
   to,
@@ -388,6 +440,8 @@ export const sendTicketResolvedEmail = async ({
   resolutionDetails,
   departmentRemarks,
 }) => {
+  const trackingUrl = `https://liceo8888.vercel.app/track`;
+  
   const html = generateEmailTemplate({
     title: "Your Complaint Has Been Resolved",
     greeting: "Great news! Your complaint has been successfully resolved.",
@@ -406,7 +460,7 @@ export const sendTicketResolvedEmail = async ({
       <div style="background-color: #e8f5e9; border-radius: 8px; padding: 20px; margin: 20px 0;">
         <p style="margin: 0; color: #333; font-size: 14px;">
           <strong>Resolution Details:</strong><br>
-          ${resolutionDetails}
+          ${resolutionDetails || "No details provided"}
         </p>
         ${departmentRemarks
         ? `
@@ -417,6 +471,24 @@ export const sendTicketResolvedEmail = async ({
         `
         : ""
       }
+      </div>
+      
+      <div style="background-color: #fff3e0; border-left: 4px solid #f57c00; padding: 15px 20px; margin: 20px 0;">
+        <p style="margin: 0; color: #333; font-size: 14px;">
+          <strong>⏰ Action Required Within 7 Days</strong><br>
+          Please verify if your issue was properly resolved. You can confirm the resolution 
+          or dispute it if you believe the problem was not addressed. If no action is taken 
+          within 7 days, the ticket will be automatically closed.
+        </p>
+      </div>
+      
+      <div style="text-align: center; margin: 25px 0;">
+        <a href="${trackingUrl}" style="display: inline-block; background: linear-gradient(135deg, ${COLORS.maroon} 0%, ${COLORS.lightMaroon} 100%); color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+          Verify Your Resolution
+        </a>
+        <p style="margin: 10px 0 0 0; color: #888; font-size: 12px;">
+          Use your tracking number: <strong>${referenceNumber}</strong>
+        </p>
       </div>
       
       <p style="margin: 20px 0 0 0; color: #555; font-size: 14px;">
@@ -438,7 +510,7 @@ export const sendTicketResolvedEmail = async ({
 
   return sendEmail({
     to,
-    subject: `[Liceo 8888] Complaint Resolved - ${referenceNumber}`,
+    subject: `[Liceo 8888] Complaint Resolved - Action Required - ${referenceNumber}`,
     html,
   });
 };

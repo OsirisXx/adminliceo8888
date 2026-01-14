@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import {
   sendTicketVerifiedEmail,
   sendTicketRejectedEmail,
+  sendTicketStatusChangedEmail,
 } from "../lib/resend";
 import {
   Shield,
@@ -24,9 +26,12 @@ import {
   User,
   Image,
   MessageSquare,
+  Edit3,
+  Lock,
 } from "lucide-react";
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +44,8 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [newStatus, setNewStatus] = useState("");
+  const [showStatusChangeSection, setShowStatusChangeSection] = useState(false);
 
   const departments = [
     { value: "academic", label: "Academic Affairs" },
@@ -75,6 +82,16 @@ const AdminDashboard = () => {
       label: "Resolved",
       color: "bg-green-100 text-green-800",
       icon: CheckCircle,
+    },
+    closed: {
+      label: "Closed",
+      color: "bg-gray-100 text-gray-800",
+      icon: Lock,
+    },
+    disputed: {
+      label: "Disputed",
+      color: "bg-amber-100 text-amber-800",
+      icon: AlertCircle,
     },
   };
 
@@ -161,10 +178,6 @@ const AdminDashboard = () => {
   };
 
   const handleReject = async () => {
-    if (!remarks) {
-      alert("Please provide a reason for rejection");
-      return;
-    }
 
     setActionLoading(true);
     try {
@@ -203,6 +216,106 @@ const AdminDashboard = () => {
     } catch (err) {
       console.error("Error rejecting complaint:", err);
       alert("Failed to reject complaint");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleStatusChange = async () => {
+    if (!newStatus) {
+      alert("Please select a new status");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const updateData = {
+        status: newStatus,
+        admin_remarks: remarks || selectedComplaint.admin_remarks,
+      };
+
+      // If changing to verified, require department
+      if (newStatus === "verified" && !selectedComplaint.assigned_department && !selectedDepartment) {
+        alert("Please select a department for verified status");
+        setActionLoading(false);
+        return;
+      }
+
+      if (newStatus === "verified" && selectedDepartment) {
+        updateData.assigned_department = selectedDepartment;
+      }
+
+      const { error: updateError } = await supabase
+        .from("complaints")
+        .update(updateData)
+        .eq("id", selectedComplaint.id);
+
+      if (updateError) throw updateError;
+
+      const statusLabels = {
+        submitted: "Submitted",
+        verified: "Verified",
+        rejected: "Rejected",
+        in_progress: "In Progress",
+        resolved: "Resolved",
+        closed: "Closed",
+        disputed: "Disputed",
+      };
+
+      // Insert audit trail entry
+      const { error: auditError } = await supabase.from("audit_trail").insert({
+        complaint_id: selectedComplaint.id,
+        action: `Status Changed to ${statusLabels[newStatus] || newStatus}`,
+        performed_by: user.id,
+        details: `Admin changed status from ${statusLabels[selectedComplaint.status] || selectedComplaint.status} to ${statusLabels[newStatus] || newStatus}${remarks ? `. Remarks: ${remarks}` : ""}`,
+      });
+
+      if (auditError) {
+        console.error("Error inserting audit trail:", auditError);
+      }
+
+      // Send email notification if user provided email
+      if (selectedComplaint.email) {
+        try {
+          const emailResult = await sendTicketStatusChangedEmail({
+            to: selectedComplaint.email,
+            referenceNumber: selectedComplaint.reference_number,
+            oldStatus: statusLabels[selectedComplaint.status] || selectedComplaint.status,
+            newStatus: statusLabels[newStatus] || newStatus,
+            remarks: remarks,
+          });
+          console.log("Email sent result:", emailResult);
+        } catch (emailErr) {
+          console.error("Error sending email:", emailErr);
+        }
+      }
+
+      // Also send to additional email if provided
+      if (selectedComplaint.additional_email && selectedComplaint.additional_email !== selectedComplaint.email) {
+        try {
+          const emailResult = await sendTicketStatusChangedEmail({
+            to: selectedComplaint.additional_email,
+            referenceNumber: selectedComplaint.reference_number,
+            oldStatus: statusLabels[selectedComplaint.status] || selectedComplaint.status,
+            newStatus: statusLabels[newStatus] || newStatus,
+            remarks: remarks,
+          });
+          console.log("Additional email sent result:", emailResult);
+        } catch (emailErr) {
+          console.error("Error sending additional email:", emailErr);
+        }
+      }
+
+      setShowModal(false);
+      setSelectedComplaint(null);
+      setSelectedDepartment("");
+      setRemarks("");
+      setNewStatus("");
+      setShowStatusChangeSection(false);
+      fetchComplaints();
+    } catch (err) {
+      console.error("Error changing status:", err);
+      alert("Failed to change status");
     } finally {
       setActionLoading(false);
     }
@@ -278,6 +391,8 @@ const AdminDashboard = () => {
     verified: complaints.filter((c) => c.status === "verified").length,
     inProgress: complaints.filter((c) => c.status === "in_progress").length,
     resolved: complaints.filter((c) => c.status === "resolved").length,
+    closed: complaints.filter((c) => c.status === "closed").length,
+    disputed: complaints.filter((c) => c.status === "disputed").length,
     rejected: complaints.filter((c) => c.status === "rejected").length,
   };
 
@@ -300,7 +415,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
           <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <p className="text-sm text-gray-500">Total</p>
             <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
@@ -326,6 +441,14 @@ const AdminDashboard = () => {
             <p className="text-2xl font-bold text-green-700">
               {stats.resolved}
             </p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <p className="text-sm text-gray-600">Closed</p>
+            <p className="text-2xl font-bold text-gray-700">{stats.closed}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
+            <p className="text-sm text-amber-600">Disputed</p>
+            <p className="text-2xl font-bold text-amber-700">{stats.disputed}</p>
           </div>
           <div className="bg-white rounded-xl p-4 border border-red-100 shadow-sm">
             <p className="text-sm text-red-600">Rejected</p>
@@ -366,6 +489,8 @@ const AdminDashboard = () => {
                 <option value="verified">Verified</option>
                 <option value="in_progress">In Progress</option>
                 <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+                <option value="disputed">Disputed</option>
                 <option value="rejected">Rejected</option>
               </select>
               <select
@@ -504,16 +629,25 @@ const AdminDashboard = () => {
                       <MessageSquare size={16} />
                       <span>Complaint #{complaint.id}</span>
                     </div>
-                    <button
-                      onClick={() => {
-                        setSelectedComplaint(complaint);
-                        setShowModal(true);
-                      }}
-                      className="inline-flex items-center space-x-2 px-4 py-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors text-sm font-medium w-full sm:w-auto justify-center"
-                    >
-                      <Eye size={16} />
-                      <span>View Details</span>
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={() => navigate(`/ticket/${complaint.reference_number}`)}
+                        className="inline-flex items-center space-x-2 px-4 py-2 border border-maroon-800 text-maroon-800 rounded-lg hover:bg-maroon-50 transition-colors text-sm font-medium w-full sm:w-auto justify-center"
+                      >
+                        <MessageSquare size={16} />
+                        <span>View Activity</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedComplaint(complaint);
+                          setShowModal(true);
+                        }}
+                        className="inline-flex items-center space-x-2 px-4 py-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors text-sm font-medium w-full sm:w-auto justify-center"
+                      >
+                        <Eye size={16} />
+                        <span>View Details</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -550,15 +684,79 @@ const AdminDashboard = () => {
 
               {/* Modal Body */}
               <div className="p-6 space-y-6">
-                {/* Status */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">Current Status</span>
-                  <span
-                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${statusConfig[selectedComplaint.status]?.color
-                      }`}
-                  >
-                    {statusConfig[selectedComplaint.status]?.label}
-                  </span>
+                {/* Status Dropdown */}
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Status:</label>
+                    <div className="flex-1 flex flex-col sm:flex-row gap-3">
+                      <select
+                        value={newStatus || selectedComplaint.status}
+                        onChange={(e) => setNewStatus(e.target.value)}
+                        className={`flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white font-medium ${statusConfig[newStatus || selectedComplaint.status]?.color}`}
+                      >
+                        <option value="submitted">Submitted</option>
+                        <option value="verified">Verified</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                        <option value="disputed">Disputed</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                      {newStatus && newStatus !== selectedComplaint.status && (
+                        <button
+                          onClick={handleStatusChange}
+                          disabled={actionLoading || (newStatus === "verified" && !selectedComplaint.assigned_department && !selectedDepartment)}
+                          className="px-4 py-2.5 bg-maroon-800 text-white rounded-xl font-medium hover:bg-maroon-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                        >
+                          {actionLoading ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          ) : (
+                            <>
+                              <CheckCircle size={16} />
+                              <span>Update</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Show department selection if changing to verified and no department assigned */}
+                  {newStatus === "verified" && !selectedComplaint.assigned_department && (
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Assign to Department <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={selectedDepartment}
+                        onChange={(e) => setSelectedDepartment(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white"
+                      >
+                        <option value="">Select a department...</option>
+                        {departments.map((dept) => (
+                          <option key={dept.value} value={dept.value}>
+                            {dept.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Remarks for status change */}
+                  {newStatus && newStatus !== selectedComplaint.status && (
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Remarks <span className="text-gray-400">(optional)</span>
+                      </label>
+                      <textarea
+                        value={remarks}
+                        onChange={(e) => setRemarks(e.target.value)}
+                        rows={2}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
+                        placeholder="Add remarks for this status change..."
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Info Grid */}
@@ -669,7 +867,7 @@ const AdminDashboard = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Remarks{" "}
                         <span className="text-gray-400">
-                          (optional for approval, required for rejection)
+                          (optional)
                         </span>
                       </label>
                       <textarea
@@ -699,7 +897,7 @@ const AdminDashboard = () => {
                       </button>
                       <button
                         onClick={handleReject}
-                        disabled={actionLoading || !remarks}
+                        disabled={actionLoading}
                         className="flex-1 bg-red-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-red-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {actionLoading ? (
@@ -727,6 +925,20 @@ const AdminDashboard = () => {
                           (d) =>
                             d.value === selectedComplaint.assigned_department
                         )?.label || selectedComplaint.assigned_department}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Show dispute reason for disputed complaints */}
+                {selectedComplaint.status === "disputed" && selectedComplaint.dispute_reason && (
+                  <div className="border-t border-gray-100 pt-6">
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <p className="text-sm text-amber-700 mb-1 font-medium">
+                        Dispute Reason
+                      </p>
+                      <p className="text-amber-900">
+                        {selectedComplaint.dispute_reason}
                       </p>
                     </div>
                   </div>
@@ -771,7 +983,8 @@ const AdminDashboard = () => {
                       )}
                     </div>
                   )}
-              </div>
+
+                              </div>
             </div>
           </div>
         )}

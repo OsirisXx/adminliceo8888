@@ -12,7 +12,8 @@ import {
   Calendar,
   Building2,
   MessageSquare,
-  Loader2
+  Loader2,
+  Lock
 } from 'lucide-react'
 
 const TrackComplaint = () => {
@@ -53,6 +54,18 @@ const TrackComplaint = () => {
       color: 'bg-green-100 text-green-800 border-green-200',
       icon: CheckCircle,
       description: 'Your complaint has been resolved. Thank you for your feedback.'
+    },
+    closed: {
+      label: 'Closed',
+      color: 'bg-gray-100 text-gray-800 border-gray-200',
+      icon: Lock,
+      description: 'This complaint has been closed. Thank you for your feedback.'
+    },
+    disputed: {
+      label: 'Disputed',
+      color: 'bg-amber-100 text-amber-800 border-amber-200',
+      icon: AlertCircle,
+      description: 'The resolution has been disputed and is under review.'
     },
   }
 
