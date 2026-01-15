@@ -60,12 +60,34 @@ const SuperAdminDashboard = () => {
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [departmentSearchQuery, setDepartmentSearchQuery] = useState("");
 
+  // Fetch departments from database
+  const fetchDepartments = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("departments")
+        .select("*")
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+      setDepartmentsList(data || []);
+      return data || [];
+    } catch (err) {
+      console.error("Error fetching departments:", err);
+      return [];
+    }
+  }, []);
+
   // Fetch stats for overview
   const fetchStats = useCallback(async () => {
     try {
-      const [usersResult, complaintsResult] = await Promise.all([
+      const [usersResult, complaintsResult, deptsResult] = await Promise.all([
         supabase.from("admin_users").select("*", { count: "exact" }),
         supabase.from("complaints").select("*", { count: "exact" }),
+        supabase
+          .from("departments")
+          .select("*", { count: "exact" })
+          .eq("is_active", true),
       ]);
 
       const pendingResult = await supabase
@@ -75,7 +97,7 @@ const SuperAdminDashboard = () => {
 
       setStats({
         totalUsers: usersResult.count || 0,
-        totalDepartments: departments.length,
+        totalDepartments: deptsResult.count || 0,
         totalComplaints: complaintsResult.count || 0,
         pendingComplaints: pendingResult.count || 0,
       });
@@ -141,14 +163,16 @@ const SuperAdminDashboard = () => {
         .limit(200);
 
       if (error) {
-        console.log("complaint_submissions table may not exist, fetching from complaints");
+        console.log(
+          "complaint_submissions table may not exist, fetching from complaints"
+        );
         // Fallback: get IP data from complaints table
         const { data: complaintsData } = await supabase
           .from("complaints")
           .select("id, reference_number, created_at, ip_address, user_agent")
           .order("created_at", { ascending: false })
           .limit(200);
-        
+
         setLoginSessions(complaintsData || []);
         return;
       }
@@ -213,25 +237,26 @@ const SuperAdminDashboard = () => {
       await Promise.all([
         fetchStats(),
         fetchUsers(),
+        fetchDepartments(),
         fetchComplaints(),
         fetchAuditLogs(),
         fetchLoginSessions(),
         fetchRateLimits(),
         fetchBlockedIPs(),
       ]);
-      setDepartmentsList(
-        departments.map((d, i) => ({
-          id: i + 1,
-          name: d.label,
-          code: d.value,
-          staff_count: Math.floor(Math.random() * 10) + 1,
-          complaint_count: Math.floor(Math.random() * 20),
-        }))
-      );
       setLoading(false);
     };
     loadData();
-  }, [fetchStats, fetchUsers, fetchComplaints, fetchAuditLogs, fetchLoginSessions, fetchRateLimits, fetchBlockedIPs]);
+  }, [
+    fetchStats,
+    fetchUsers,
+    fetchDepartments,
+    fetchComplaints,
+    fetchAuditLogs,
+    fetchLoginSessions,
+    fetchRateLimits,
+    fetchBlockedIPs,
+  ]);
 
   // Handle logout
   const handleLogout = async () => {
@@ -306,28 +331,58 @@ const SuperAdminDashboard = () => {
 
   // Department CRUD operations
   const handleSaveDepartment = async (formData, deptId) => {
-    if (deptId) {
-      setDepartmentsList((prev) =>
-        prev.map((d) => (d.id === deptId ? { ...d, ...formData } : d))
-      );
-    } else {
-      setDepartmentsList((prev) => [
-        ...prev,
-        {
-          id: Date.now(),
-          ...formData,
-          staff_count: 0,
-          complaint_count: 0,
-        },
-      ]);
+    try {
+      if (deptId) {
+        // Update existing department
+        const { error } = await supabase
+          .from("departments")
+          .update({
+            name: formData.name,
+            code: formData.code,
+            description: formData.description,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", deptId);
+
+        if (error) throw error;
+      } else {
+        // Create new department
+        const { error } = await supabase.from("departments").insert({
+          name: formData.name,
+          code: formData.code,
+          description: formData.description,
+          is_active: true,
+        });
+
+        if (error) throw error;
+      }
+
+      await fetchDepartments();
+      await fetchStats();
+    } catch (err) {
+      console.error("Error saving department:", err);
+      throw err;
     }
   };
 
   const handleDeleteDepartment = async () => {
     if (!selectedDepartment) return;
-    setDepartmentsList((prev) =>
-      prev.filter((d) => d.id !== selectedDepartment.id)
-    );
+
+    try {
+      // Soft delete by setting is_active to false
+      const { error } = await supabase
+        .from("departments")
+        .update({ is_active: false })
+        .eq("id", selectedDepartment.id);
+
+      if (error) throw error;
+
+      await fetchDepartments();
+      await fetchStats();
+    } catch (err) {
+      console.error("Error deleting department:", err);
+    }
+
     setConfirmModalOpen(false);
     setSelectedDepartment(null);
   };
@@ -575,13 +630,13 @@ const SuperAdminDashboard = () => {
             : handleDeleteDepartment
         }
         title={
-          confirmAction === "deleteUser"
-            ? "Delete User"
-            : "Delete Department"
+          confirmAction === "deleteUser" ? "Delete User" : "Delete Department"
         }
         message={
           confirmAction === "deleteUser"
-            ? `Are you sure you want to delete "${selectedUser?.full_name || selectedUser?.email}"? This action cannot be undone.`
+            ? `Are you sure you want to delete "${
+                selectedUser?.full_name || selectedUser?.email
+              }"? This action cannot be undone.`
             : `Are you sure you want to delete "${selectedDepartment?.name}"? This action cannot be undone.`
         }
         confirmText="Delete"
