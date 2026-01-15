@@ -28,6 +28,14 @@ import {
   MessageSquare,
   Edit3,
   Lock,
+  ArrowUpDown,
+  LayoutGrid,
+  LayoutList,
+  Minimize2,
+  Maximize2,
+  ChevronLeft,
+  ChevronRight,
+  Columns,
 } from "lucide-react";
 
 const AdminDashboard = () => {
@@ -46,6 +54,12 @@ const AdminDashboard = () => {
   const [remarks, setRemarks] = useState("");
   const [newStatus, setNewStatus] = useState("");
   const [showStatusChangeSection, setShowStatusChangeSection] = useState(false);
+  const [sortOrder, setSortOrder] = useState("newest");
+  const [viewMode, setViewMode] = useState("expanded");
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [paginationEnabled, setPaginationEnabled] = useState(true);
+  const [columnCount, setColumnCount] = useState(1);
 
   const departments = [
     { value: "academic", label: "Academic Affairs" },
@@ -116,7 +130,7 @@ const AdminDashboard = () => {
       if (error) throw error;
       setComplaints(data || []);
     } catch (err) {
-      console.error("Error fetching complaints:", err);
+      console.error("Error fetching concerns:", err);
     } finally {
       setLoading(false);
     }
@@ -145,10 +159,11 @@ const AdminDashboard = () => {
 
       await supabase.from("audit_trail").insert({
         complaint_id: selectedComplaint.id,
-        action: "Complaint Verified",
+        action: "Concern Verified",
         performed_by: user.id,
-        details: `Assigned to ${departments.find((d) => d.value === selectedDepartment)?.label
-          }. ${remarks ? `Remarks: ${remarks}` : ""}`,
+        details: `Assigned to ${
+          departments.find((d) => d.value === selectedDepartment)?.label
+        }. ${remarks ? `Remarks: ${remarks}` : ""}`,
       });
 
       // Send email notification if user provided email
@@ -170,15 +185,14 @@ const AdminDashboard = () => {
       setRemarks("");
       fetchComplaints();
     } catch (err) {
-      console.error("Error approving complaint:", err);
-      alert("Failed to approve complaint");
+      console.error("Error approving concern:", err);
+      alert("Failed to approve concern");
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleReject = async () => {
-
     setActionLoading(true);
     try {
       const { error: updateError } = await supabase
@@ -195,7 +209,7 @@ const AdminDashboard = () => {
 
       await supabase.from("audit_trail").insert({
         complaint_id: selectedComplaint.id,
-        action: "Complaint Rejected",
+        action: "Concern Rejected",
         performed_by: user.id,
         details: `Reason: ${remarks}`,
       });
@@ -214,8 +228,8 @@ const AdminDashboard = () => {
       setRemarks("");
       fetchComplaints();
     } catch (err) {
-      console.error("Error rejecting complaint:", err);
-      alert("Failed to reject complaint");
+      console.error("Error rejecting concern:", err);
+      alert("Failed to reject concern");
     } finally {
       setActionLoading(false);
     }
@@ -235,7 +249,11 @@ const AdminDashboard = () => {
       };
 
       // If changing to verified, require department
-      if (newStatus === "verified" && !selectedComplaint.assigned_department && !selectedDepartment) {
+      if (
+        newStatus === "verified" &&
+        !selectedComplaint.assigned_department &&
+        !selectedDepartment
+      ) {
         alert("Please select a department for verified status");
         setActionLoading(false);
         return;
@@ -267,7 +285,11 @@ const AdminDashboard = () => {
         complaint_id: selectedComplaint.id,
         action: `Status Changed to ${statusLabels[newStatus] || newStatus}`,
         performed_by: user.id,
-        details: `Admin changed status from ${statusLabels[selectedComplaint.status] || selectedComplaint.status} to ${statusLabels[newStatus] || newStatus}${remarks ? `. Remarks: ${remarks}` : ""}`,
+        details: `Admin changed status from ${
+          statusLabels[selectedComplaint.status] || selectedComplaint.status
+        } to ${statusLabels[newStatus] || newStatus}${
+          remarks ? `. Remarks: ${remarks}` : ""
+        }`,
       });
 
       if (auditError) {
@@ -280,7 +302,9 @@ const AdminDashboard = () => {
           const emailResult = await sendTicketStatusChangedEmail({
             to: selectedComplaint.email,
             referenceNumber: selectedComplaint.reference_number,
-            oldStatus: statusLabels[selectedComplaint.status] || selectedComplaint.status,
+            oldStatus:
+              statusLabels[selectedComplaint.status] ||
+              selectedComplaint.status,
             newStatus: statusLabels[newStatus] || newStatus,
             remarks: remarks,
           });
@@ -291,12 +315,17 @@ const AdminDashboard = () => {
       }
 
       // Also send to additional email if provided
-      if (selectedComplaint.additional_email && selectedComplaint.additional_email !== selectedComplaint.email) {
+      if (
+        selectedComplaint.additional_email &&
+        selectedComplaint.additional_email !== selectedComplaint.email
+      ) {
         try {
           const emailResult = await sendTicketStatusChangedEmail({
             to: selectedComplaint.additional_email,
             referenceNumber: selectedComplaint.reference_number,
-            oldStatus: statusLabels[selectedComplaint.status] || selectedComplaint.status,
+            oldStatus:
+              statusLabels[selectedComplaint.status] ||
+              selectedComplaint.status,
             newStatus: statusLabels[newStatus] || newStatus,
             remarks: remarks,
           });
@@ -368,22 +397,47 @@ const AdminDashboard = () => {
     return true;
   };
 
-  const filteredComplaints = complaints.filter((complaint) => {
-    const matchesSearch =
-      !searchQuery ||
-      complaint.reference_number
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      complaint.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      complaint.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      complaint.description.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredComplaints = complaints
+    .filter((complaint) => {
+      const matchesSearch =
+        !searchQuery ||
+        complaint.reference_number
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()) ||
+        complaint.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        complaint.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        complaint.description.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesCategory =
-      filterCategory === "all" || complaint.category === filterCategory;
-    const matchesDate = isWithinDateRange(complaint.created_at);
+      const matchesCategory =
+        filterCategory === "all" || complaint.category === filterCategory;
+      const matchesDate = isWithinDateRange(complaint.created_at);
 
-    return matchesSearch && matchesCategory && matchesDate;
-  });
+      return matchesSearch && matchesCategory && matchesDate;
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.created_at);
+      const dateB = new Date(b.created_at);
+      return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
+    });
+
+  const totalPages = Math.ceil(filteredComplaints.length / itemsPerPage);
+  const paginatedComplaints = paginationEnabled
+    ? filteredComplaints.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+      )
+    : filteredComplaints;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    filterStatus,
+    filterCategory,
+    filterDateRange,
+    searchQuery,
+    sortOrder,
+    itemsPerPage,
+  ]);
 
   const stats = {
     total: complaints.length,
@@ -409,7 +463,7 @@ const AdminDashboard = () => {
               <h1 className="text-2xl font-bold text-gray-900">
                 Admin Dashboard
               </h1>
-              <p className="text-gray-600">Verify and manage complaints</p>
+              <p className="text-gray-600">Verify and manage concerns</p>
             </div>
           </div>
         </div>
@@ -448,7 +502,9 @@ const AdminDashboard = () => {
           </div>
           <div className="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
             <p className="text-sm text-amber-600">Disputed</p>
-            <p className="text-2xl font-bold text-amber-700">{stats.disputed}</p>
+            <p className="text-2xl font-bold text-amber-700">
+              {stats.disputed}
+            </p>
           </div>
           <div className="bg-white rounded-xl p-4 border border-red-100 shadow-sm">
             <p className="text-sm text-red-600">Rejected</p>
@@ -522,131 +578,435 @@ const AdminDashboard = () => {
               >
                 <RefreshCw size={18} className="text-gray-600" />
               </button>
+            </div>
+
+            {/* Layout & Sort Controls */}
+            <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-100">
+              {/* Sort Order */}
+              <div className="flex items-center gap-2">
+                <ArrowUpDown size={16} className="text-gray-400" />
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white text-sm"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                </select>
+              </div>
+
+              {/* View Mode Toggle */}
+              <button
+                onClick={() =>
+                  setViewMode(viewMode === "expanded" ? "compact" : "expanded")
+                }
+                className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg text-sm font-medium transition-colors hover:bg-gray-200"
+                title={
+                  viewMode === "expanded"
+                    ? "Switch to Compact View"
+                    : "Switch to Expanded View"
+                }
+              >
+                {viewMode === "expanded" ? (
+                  <>
+                    <Minimize2 size={16} className="text-gray-600" />
+                    <span className="text-gray-700">Minimize</span>
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 size={16} className="text-maroon-800" />
+                    <span className="text-maroon-800">Expand</span>
+                  </>
+                )}
+              </button>
+
+              {/* Column Count Selector */}
+              <div className="flex items-center gap-2">
+                <Columns size={16} className="text-gray-400" />
+                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                  {[1, 2, 3, 4].map((cols) => (
+                    <button
+                      key={cols}
+                      onClick={() => setColumnCount(cols)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        columnCount === cols
+                          ? "bg-white shadow-sm text-maroon-800"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      {cols}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pagination Toggle */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPaginationEnabled(!paginationEnabled)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    paginationEnabled
+                      ? "bg-maroon-100 text-maroon-800"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  <LayoutGrid size={16} />
+                  <span>Pagination {paginationEnabled ? "On" : "Off"}</span>
+                </button>
+              </div>
+
+              {/* Items Per Page - only show when pagination is enabled */}
+              {paginationEnabled && (
+                <div className="flex items-center gap-2">
+                  <LayoutList size={16} className="text-gray-400" />
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white text-sm"
+                  >
+                    <option value={5}>5 per page</option>
+                    <option value={10}>10 per page</option>
+                    <option value={20}>20 per page</option>
+                    <option value={50}>50 per page</option>
+                  </select>
+                </div>
+              )}
+
               <span className="text-sm text-gray-500 ml-auto">
-                {filteredComplaints.length} complaint
-                {filteredComplaints.length !== 1 ? "s" : ""}
+                {paginationEnabled
+                  ? `Showing ${paginatedComplaints.length} of ${filteredComplaints.length}`
+                  : `${filteredComplaints.length}`}{" "}
+                concern{filteredComplaints.length !== 1 ? "s" : ""}
               </span>
             </div>
           </div>
         </div>
 
         {/* Complaints Newsfeed */}
-        <div className="space-y-4">
+        <div
+          className={`${
+            columnCount === 1
+              ? "space-y-4"
+              : `grid gap-4 ${
+                  columnCount === 2
+                    ? "grid-cols-1 md:grid-cols-2"
+                    : columnCount === 3
+                    ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+                    : "grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
+                }`
+          }`}
+        >
           {loading ? (
             <div className="bg-white rounded-xl p-12 text-center border border-gray-100 shadow-sm">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-maroon-800 border-t-transparent mx-auto"></div>
-              <p className="text-gray-500 mt-4">Loading complaints...</p>
+              <p className="text-gray-500 mt-4">Loading concerns...</p>
             </div>
-          ) : filteredComplaints.length === 0 ? (
+          ) : paginatedComplaints.length === 0 ? (
             <div className="bg-white rounded-xl p-12 text-center border border-gray-100 shadow-sm">
               <FileText size={48} className="text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No complaints found</p>
+              <p className="text-gray-500">No concerns found</p>
             </div>
           ) : (
-            filteredComplaints.map((complaint) => {
+            paginatedComplaints.map((complaint) => {
               const status = statusConfig[complaint.status];
               const StatusIcon = status?.icon || FileText;
+
+              if (viewMode === "compact") {
+                return (
+                  <div
+                    key={complaint.id}
+                    className="bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 p-3"
+                  >
+                    {columnCount === 1 ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0 flex-wrap">
+                          <span
+                            className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${status?.color}`}
+                          >
+                            <StatusIcon size={12} />
+                            <span>{status?.label}</span>
+                          </span>
+                          <span className="font-mono text-xs text-maroon-800 bg-maroon-50 px-2 py-1 rounded">
+                            {complaint.reference_number}
+                          </span>
+                          <span className="text-sm text-gray-900 truncate font-medium">
+                            {complaint.name}
+                          </span>
+                          <span className="text-xs text-gray-500 capitalize hidden sm:inline">
+                            {complaint.category}
+                          </span>
+                          <span className="text-xs text-gray-400 hidden md:inline">
+                            {formatDate(complaint.created_at)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              navigate(`/ticket/${complaint.reference_number}`)
+                            }
+                            className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                            title="View Activity"
+                          >
+                            <MessageSquare size={16} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedComplaint(complaint);
+                              setShowModal(true);
+                            }}
+                            className="p-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors"
+                            title="View Details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col h-full">
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span
+                            className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${status?.color}`}
+                          >
+                            <StatusIcon size={12} />
+                            <span>{status?.label}</span>
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {formatDate(complaint.created_at)}
+                          </span>
+                        </div>
+                        <span className="font-mono text-xs text-maroon-800 bg-maroon-50 px-2 py-1 rounded inline-block mb-2 w-fit">
+                          {complaint.reference_number}
+                        </span>
+                        <p className="text-sm text-gray-900 font-medium truncate mb-1">
+                          {complaint.name}
+                        </p>
+                        <p className="text-xs text-gray-500 capitalize mb-3">
+                          {complaint.category}
+                        </p>
+                        <div className="flex items-center gap-2 mt-auto">
+                          <button
+                            onClick={() =>
+                              navigate(`/ticket/${complaint.reference_number}`)
+                            }
+                            className="flex-1 p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-xs flex items-center justify-center gap-1"
+                            title="View Activity"
+                          >
+                            <MessageSquare size={14} />
+                            <span className={columnCount >= 3 ? "hidden" : ""}>
+                              Activity
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedComplaint(complaint);
+                              setShowModal(true);
+                            }}
+                            className="flex-1 p-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors text-xs flex items-center justify-center gap-1"
+                            title="View Details"
+                          >
+                            <Eye size={14} />
+                            <span className={columnCount >= 3 ? "hidden" : ""}>
+                              Details
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              const isMultiColumn = columnCount >= 2;
+              const isNarrowColumn = columnCount >= 3;
+
               return (
                 <div
                   key={complaint.id}
-                  className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
+                  className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col"
                 >
                   {/* Card Header */}
-                  <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div
+                    className={`${
+                      isNarrowColumn ? "px-3 py-3" : "px-4 sm:px-6 py-4"
+                    } border-b border-gray-100 flex ${
+                      isMultiColumn
+                        ? "flex-col gap-2"
+                        : "flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    }`}
+                  >
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-maroon-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <User size={20} className="text-maroon-800" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">
+                      {!isNarrowColumn && (
+                        <div className="w-10 h-10 bg-maroon-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <User size={20} className="text-maroon-800" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={`font-semibold text-gray-900 truncate ${
+                            isNarrowColumn ? "text-sm" : ""
+                          }`}
+                        >
                           {complaint.name}
                         </p>
-                        <p className="text-sm text-gray-500 truncate">
-                          {complaint.email || "No email provided"}
-                        </p>
+                        {!isNarrowColumn && (
+                          <p className="text-sm text-gray-500 truncate">
+                            {complaint.email || "No email provided"}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <span
-                      className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-medium self-start sm:self-center ${status?.color}`}
+                      className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium self-start ${status?.color}`}
                     >
-                      <StatusIcon size={14} />
+                      <StatusIcon size={12} />
                       <span>{status?.label}</span>
                     </span>
                   </div>
 
                   {/* Card Body */}
-                  <div className="px-4 sm:px-6 py-4">
+                  <div
+                    className={`${
+                      isNarrowColumn ? "px-3 py-3" : "px-4 sm:px-6 py-4"
+                    } flex-1`}
+                  >
                     {/* Reference & Category */}
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
-                      <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-maroon-50 text-maroon-800 rounded-lg text-xs font-mono font-medium">
-                        <FileText size={12} />
-                        <span className="truncate max-w-[120px] sm:max-w-none">
+                    <div
+                      className={`flex flex-wrap items-center gap-2 ${
+                        isNarrowColumn ? "mb-2" : "mb-3"
+                      }`}
+                    >
+                      <span
+                        className={`inline-flex items-center space-x-1 px-2 py-1 bg-maroon-50 text-maroon-800 rounded text-xs font-mono font-medium ${
+                          isNarrowColumn ? "text-[10px]" : ""
+                        }`}
+                      >
+                        <FileText size={isNarrowColumn ? 10 : 12} />
+                        <span className="truncate max-w-[100px]">
                           {complaint.reference_number}
                         </span>
                       </span>
-                      <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs capitalize">
-                        <Tag size={12} />
+                      <span
+                        className={`inline-flex items-center space-x-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs capitalize ${
+                          isNarrowColumn ? "text-[10px]" : ""
+                        }`}
+                      >
+                        <Tag size={isNarrowColumn ? 10 : 12} />
                         <span>{complaint.category}</span>
                       </span>
-                      <span className="inline-flex items-center space-x-1.5 text-xs text-gray-500">
-                        <Calendar size={12} />
-                        <span>{formatDate(complaint.created_at)}</span>
+                    </div>
+
+                    {/* Date */}
+                    <div
+                      className={`flex items-center space-x-1 text-xs text-gray-500 ${
+                        isNarrowColumn ? "mb-2" : "mb-3"
+                      }`}
+                    >
+                      <Calendar size={isNarrowColumn ? 10 : 12} />
+                      <span className={isNarrowColumn ? "text-[10px]" : ""}>
+                        {formatDate(complaint.created_at)}
                       </span>
                     </div>
 
                     {/* Description Preview */}
-                    <div className="mb-4">
-                      <p className="text-gray-700 line-clamp-2 text-sm sm:text-base">
+                    <div className={isNarrowColumn ? "mb-2" : "mb-4"}>
+                      <p
+                        className={`text-gray-700 ${
+                          isNarrowColumn
+                            ? "line-clamp-2 text-xs"
+                            : isMultiColumn
+                            ? "line-clamp-2 text-sm"
+                            : "line-clamp-2 text-sm sm:text-base"
+                        }`}
+                      >
                         {complaint.description}
                       </p>
                     </div>
 
                     {/* Attachment indicator */}
-                    {complaint.attachment_url && (
-                      <div className="flex items-center space-x-2 text-sm text-gray-500 mb-4">
-                        <Image size={16} />
-                        <span>Has attachment</span>
+                    {complaint.attachment_url && !isNarrowColumn && (
+                      <div className="flex items-center space-x-2 text-sm text-gray-500 mb-3">
+                        <Image size={14} />
+                        <span className="text-xs">Has attachment</span>
                       </div>
                     )}
 
                     {/* Assigned Department (if verified) */}
                     {complaint.assigned_department && (
-                      <div className="flex items-center space-x-2 text-sm text-gold-700 bg-gold-50 px-3 py-2 rounded-lg mb-4">
-                        <Building2 size={16} />
+                      <div
+                        className={`flex items-center space-x-2 text-gold-700 bg-gold-50 px-2 py-1.5 rounded-lg ${
+                          isNarrowColumn ? "text-[10px]" : "text-xs"
+                        }`}
+                      >
+                        <Building2 size={isNarrowColumn ? 12 : 14} />
                         <span className="truncate">
-                          Assigned to:{" "}
-                          <strong className="capitalize">
-                            {complaint.assigned_department.replace("_", " ")}
-                          </strong>
+                          {isNarrowColumn ? (
+                            complaint.assigned_department.replace("_", " ")
+                          ) : (
+                            <>
+                              Assigned:{" "}
+                              <strong className="capitalize">
+                                {complaint.assigned_department.replace(
+                                  "_",
+                                  " "
+                                )}
+                              </strong>
+                            </>
+                          )}
                         </span>
                       </div>
                     )}
                   </div>
 
                   {/* Card Footer */}
-                  <div className="px-4 sm:px-6 py-3 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <div className="flex items-center space-x-2 text-sm text-gray-500">
-                      <MessageSquare size={16} />
-                      <span>Complaint #{complaint.id}</span>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                      <button
-                        onClick={() => navigate(`/ticket/${complaint.reference_number}`)}
-                        className="inline-flex items-center space-x-2 px-4 py-2 border border-maroon-800 text-maroon-800 rounded-lg hover:bg-maroon-50 transition-colors text-sm font-medium w-full sm:w-auto justify-center"
+                  <div
+                    className={`${
+                      isNarrowColumn ? "px-3 py-2" : "px-4 sm:px-6 py-3"
+                    } bg-gray-50 border-t border-gray-100 mt-auto`}
+                  >
+                    <div
+                      className={`flex ${
+                        isMultiColumn
+                          ? "flex-col"
+                          : "flex-col sm:flex-row items-start sm:items-center justify-between"
+                      } gap-2`}
+                    >
+                      {!isNarrowColumn && (
+                        <div className="flex items-center space-x-2 text-xs text-gray-500">
+                          <MessageSquare size={14} />
+                          <span>Concern #{complaint.id?.slice(0, 8)}</span>
+                        </div>
+                      )}
+                      <div
+                        className={`flex gap-2 ${
+                          isMultiColumn ? "w-full" : "w-full sm:w-auto"
+                        }`}
                       >
-                        <MessageSquare size={16} />
-                        <span>View Activity</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedComplaint(complaint);
-                          setShowModal(true);
-                        }}
-                        className="inline-flex items-center space-x-2 px-4 py-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors text-sm font-medium w-full sm:w-auto justify-center"
-                      >
-                        <Eye size={16} />
-                        <span>View Details</span>
-                      </button>
+                        <button
+                          onClick={() =>
+                            navigate(`/ticket/${complaint.reference_number}`)
+                          }
+                          className={`flex-1 inline-flex items-center justify-center space-x-1 ${
+                            isNarrowColumn ? "p-2" : "px-3 py-2"
+                          } border border-maroon-800 text-maroon-800 rounded-lg hover:bg-maroon-50 transition-colors text-xs font-medium`}
+                          title="View Activity"
+                        >
+                          <MessageSquare size={isNarrowColumn ? 14 : 16} />
+                          {!isNarrowColumn && <span>Activity</span>}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedComplaint(complaint);
+                            setShowModal(true);
+                          }}
+                          className={`flex-1 inline-flex items-center justify-center space-x-1 ${
+                            isNarrowColumn ? "p-2" : "px-3 py-2"
+                          } bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors text-xs font-medium`}
+                          title="View Details"
+                        >
+                          <Eye size={isNarrowColumn ? 14 : 16} />
+                          {!isNarrowColumn && <span>Details</span>}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -654,6 +1014,53 @@ const AdminDashboard = () => {
             })
           )}
         </div>
+
+        {/* Pagination */}
+        {paginationEnabled && totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft size={18} className="text-gray-600" />
+            </button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-10 h-10 rounded-lg font-medium transition-colors ${
+                      currentPage === pageNum
+                        ? "bg-maroon-800 text-white"
+                        : "border border-gray-300 text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight size={18} className="text-gray-600" />
+            </button>
+          </div>
+        )}
 
         {/* Modal */}
         {showModal && selectedComplaint && (
@@ -663,7 +1070,7 @@ const AdminDashboard = () => {
               <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">
-                    Complaint Details
+                    Concern Details
                   </h2>
                   <p className="text-sm text-gray-500 font-mono">
                     {selectedComplaint.reference_number}
@@ -687,12 +1094,17 @@ const AdminDashboard = () => {
                 {/* Status Dropdown */}
                 <div className="bg-gray-50 rounded-xl p-4">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Status:</label>
+                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                      Status:
+                    </label>
                     <div className="flex-1 flex flex-col sm:flex-row gap-3">
                       <select
                         value={newStatus || selectedComplaint.status}
                         onChange={(e) => setNewStatus(e.target.value)}
-                        className={`flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white font-medium ${statusConfig[newStatus || selectedComplaint.status]?.color}`}
+                        className={`flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white font-medium ${
+                          statusConfig[newStatus || selectedComplaint.status]
+                            ?.color
+                        }`}
                       >
                         <option value="submitted">Submitted</option>
                         <option value="verified">Verified</option>
@@ -705,7 +1117,12 @@ const AdminDashboard = () => {
                       {newStatus && newStatus !== selectedComplaint.status && (
                         <button
                           onClick={handleStatusChange}
-                          disabled={actionLoading || (newStatus === "verified" && !selectedComplaint.assigned_department && !selectedDepartment)}
+                          disabled={
+                            actionLoading ||
+                            (newStatus === "verified" &&
+                              !selectedComplaint.assigned_department &&
+                              !selectedDepartment)
+                          }
                           className="px-4 py-2.5 bg-maroon-800 text-white rounded-xl font-medium hover:bg-maroon-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                         >
                           {actionLoading ? (
@@ -720,33 +1137,38 @@ const AdminDashboard = () => {
                       )}
                     </div>
                   </div>
-                  
+
                   {/* Show department selection if changing to verified and no department assigned */}
-                  {newStatus === "verified" && !selectedComplaint.assigned_department && (
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Assign to Department <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={selectedDepartment}
-                        onChange={(e) => setSelectedDepartment(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white"
-                      >
-                        <option value="">Select a department...</option>
-                        {departments.map((dept) => (
-                          <option key={dept.value} value={dept.value}>
-                            {dept.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                  {newStatus === "verified" &&
+                    !selectedComplaint.assigned_department && (
+                      <div className="mt-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Assign to Department{" "}
+                          <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={selectedDepartment}
+                          onChange={(e) =>
+                            setSelectedDepartment(e.target.value)
+                          }
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white"
+                        >
+                          <option value="">Select a department...</option>
+                          {departments.map((dept) => (
+                            <option key={dept.value} value={dept.value}>
+                              {dept.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
                   {/* Remarks for status change */}
                   {newStatus && newStatus !== selectedComplaint.status && (
                     <div className="mt-3">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Remarks <span className="text-gray-400">(optional)</span>
+                        Remarks{" "}
+                        <span className="text-gray-400">(optional)</span>
                       </label>
                       <textarea
                         value={remarks}
@@ -866,9 +1288,7 @@ const AdminDashboard = () => {
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Remarks{" "}
-                        <span className="text-gray-400">
-                          (optional)
-                        </span>
+                        <span className="text-gray-400">(optional)</span>
                       </label>
                       <textarea
                         value={remarks}
@@ -931,60 +1351,60 @@ const AdminDashboard = () => {
                 )}
 
                 {/* Show dispute reason for disputed complaints */}
-                {selectedComplaint.status === "disputed" && selectedComplaint.dispute_reason && (
-                  <div className="border-t border-gray-100 pt-6">
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                      <p className="text-sm text-amber-700 mb-1 font-medium">
-                        Dispute Reason
-                      </p>
-                      <p className="text-amber-900">
-                        {selectedComplaint.dispute_reason}
-                      </p>
+                {selectedComplaint.status === "disputed" &&
+                  selectedComplaint.dispute_reason && (
+                    <div className="border-t border-gray-100 pt-6">
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                        <p className="text-sm text-amber-700 mb-1 font-medium">
+                          Dispute Reason
+                        </p>
+                        <p className="text-amber-900">
+                          {selectedComplaint.dispute_reason}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Show resolution for resolved complaints */}
                 {(selectedComplaint.resolution_details ||
                   selectedComplaint.resolution_image_url) && (
-                    <div className="border-t border-gray-100 pt-6 space-y-4">
-                      {selectedComplaint.resolution_details && (
-                        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                          <p className="text-sm text-green-700 mb-1">
-                            Resolution Details
-                          </p>
-                          <p className="text-green-900">
-                            {selectedComplaint.resolution_details}
-                          </p>
+                  <div className="border-t border-gray-100 pt-6 space-y-4">
+                    {selectedComplaint.resolution_details && (
+                      <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                        <p className="text-sm text-green-700 mb-1">
+                          Resolution Details
+                        </p>
+                        <p className="text-green-900">
+                          {selectedComplaint.resolution_details}
+                        </p>
+                      </div>
+                    )}
+                    {selectedComplaint.resolution_image_url && (
+                      <div>
+                        <p className="text-sm text-gray-500 mb-2">
+                          Resolution Proof
+                        </p>
+                        <div className="bg-green-50 rounded-xl p-4">
+                          <img
+                            src={selectedComplaint.resolution_image_url}
+                            alt="Resolution Proof"
+                            className="max-h-64 rounded-lg border border-green-200 mb-2"
+                          />
+                          <a
+                            href={selectedComplaint.resolution_image_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center space-x-2 text-green-700 hover:text-green-600 text-sm"
+                          >
+                            <Eye size={18} />
+                            <span>View Full Image</span>
+                          </a>
                         </div>
-                      )}
-                      {selectedComplaint.resolution_image_url && (
-                        <div>
-                          <p className="text-sm text-gray-500 mb-2">
-                            Resolution Proof
-                          </p>
-                          <div className="bg-green-50 rounded-xl p-4">
-                            <img
-                              src={selectedComplaint.resolution_image_url}
-                              alt="Resolution Proof"
-                              className="max-h-64 rounded-lg border border-green-200 mb-2"
-                            />
-                            <a
-                              href={selectedComplaint.resolution_image_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center space-x-2 text-green-700 hover:text-green-600 text-sm"
-                            >
-                              <Eye size={18} />
-                              <span>View Full Image</span>
-                            </a>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                              </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
