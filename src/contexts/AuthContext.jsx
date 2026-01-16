@@ -59,6 +59,19 @@ export const AuthProvider = ({ children }) => {
     return { data, error }
   }
 
+  const signInWithGoogle = async () => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          prompt: 'select_account',
+        },
+      },
+    })
+    return { data, error }
+  }
+
   const signOut = async () => {
     // Clear state first
     setUser(null)
@@ -69,7 +82,7 @@ export const AuthProvider = ({ children }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ user, userRole, userDepartment, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, userRole, userDepartment, loading, signIn, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   )

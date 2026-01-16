@@ -5,7 +5,8 @@ const UserModal = ({ isOpen, onClose, user, onSave, departments }) => {
   const [formData, setFormData] = useState({
     email: "",
     full_name: "",
-    role: "department_staff",
+    password: "",
+    role: "employee",
     department: "",
     is_active: true,
   });
@@ -17,7 +18,8 @@ const UserModal = ({ isOpen, onClose, user, onSave, departments }) => {
       setFormData({
         email: user.email || "",
         full_name: user.full_name || "",
-        role: user.role || "department_staff",
+        password: "",
+        role: user.role || "employee",
         department: user.department || "",
         is_active: user.is_active !== false,
       });
@@ -25,7 +27,8 @@ const UserModal = ({ isOpen, onClose, user, onSave, departments }) => {
       setFormData({
         email: "",
         full_name: "",
-        role: "department_staff",
+        password: "",
+        role: "employee",
         department: "",
         is_active: true,
       });
@@ -110,6 +113,27 @@ const UserModal = ({ isOpen, onClose, user, onSave, departments }) => {
             />
           </div>
 
+          {/* Password - Only show for new users */}
+          {!user && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
+              <input
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500"
+                placeholder="Enter password for login"
+                required
+                minLength={6}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Minimum 6 characters. User will use this to login.
+              </p>
+            </div>
+          )}
+
           {/* Role */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -120,10 +144,21 @@ const UserModal = ({ isOpen, onClose, user, onSave, departments }) => {
               onChange={(e) => setFormData({ ...formData, role: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500"
             >
-              <option value="department_staff">Department Staff</option>
-              <option value="office_admin">Office Admin</option>
+              <option value="student">Student</option>
+              <option value="faculty">Faculty</option>
+              <option value="employee">Employee</option>
+              <option value="department">Department Staff</option>
+              <option value="admin">Admin (Administrative)</option>
               <option value="super_admin">Super Admin</option>
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {formData.role === 'admin' && 'Administrative personnel (not system admin)'}
+              {formData.role === 'super_admin' && 'Highest system access level'}
+              {formData.role === 'department' && 'Can manage department complaints'}
+              {formData.role === 'faculty' && 'Teaching staff member'}
+              {formData.role === 'employee' && 'Non-teaching staff member'}
+              {formData.role === 'student' && 'Enrolled student'}
+            </p>
           </div>
 
           {/* Department */}

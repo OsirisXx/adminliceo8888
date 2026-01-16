@@ -13,6 +13,8 @@ import {
   CheckCircle,
   AlertCircle,
   ArrowLeft,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 
 const statusConfig = {
@@ -37,6 +39,7 @@ const DepartmentsSection = ({
 }) => {
   const [selectedDept, setSelectedDept] = useState(null);
   const [complaintSearch, setComplaintSearch] = useState("");
+  const [viewMode, setViewMode] = useState("list"); // "grid" or "list"
 
   const getDeptComplaints = (deptCode) => {
     if (!complaints) return [];
@@ -89,21 +92,48 @@ const DepartmentsSection = ({
         </button>
       </div>
 
-      {/* Search */}
+      {/* Search and View Toggle */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input
-            type="text"
-            placeholder="Search departments..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500"
-          />
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search departments..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500"
+            />
+          </div>
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`p-2 rounded-md transition-colors ${
+                viewMode === "grid"
+                  ? "bg-white text-maroon-800 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+              title="Grid view"
+            >
+              <LayoutGrid size={18} />
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-2 rounded-md transition-colors ${
+                viewMode === "list"
+                  ? "bg-white text-maroon-800 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+              title="List view"
+            >
+              <List size={18} />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Departments Grid */}
+      {/* Departments Grid/List */}
+      {viewMode === "grid" ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredDepartments.length > 0 ? (
           filteredDepartments.map((dept) => {
@@ -156,7 +186,82 @@ const DepartmentsSection = ({
             <p className="text-gray-500">No departments found</p>
           </div>
         )}
+        </div>
+      ) : (
+        /* List View */
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Department</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Code</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Staff</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Complaints</th>
+              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {filteredDepartments.length > 0 ? (
+              filteredDepartments.map((dept) => {
+                const deptComplaints = getDeptComplaints(dept.code);
+                return (
+                  <tr
+                    key={dept.id}
+                    onClick={() => setSelectedDept(dept)}
+                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-maroon-100 flex items-center justify-center flex-shrink-0">
+                          <Building2 className="w-4 h-4 text-maroon-700" />
+                        </div>
+                        <span className="font-medium text-gray-900">{dept.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-500 font-mono">{dept.code || "—"}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600">{dept.staff_count || 0}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-maroon-100 text-maroon-700">
+                        {deptComplaints.length}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onEditDepartment(dept); }}
+                          className="p-2 text-gray-500 hover:text-maroon-800 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDeleteDepartment(dept); }}
+                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={5} className="px-6 py-12 text-center">
+                  <Building2 size={48} className="mx-auto mb-4 text-gray-300" />
+                  <p className="text-gray-500">No departments found</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
+      )}
 
       {/* Department Complaints Modal */}
       {selectedDept && (

@@ -23,6 +23,7 @@ import {
   Calendar,
   Tag,
   User,
+  AlertCircle,
 } from "lucide-react";
 
 const DepartmentDashboard = () => {
@@ -41,15 +42,35 @@ const DepartmentDashboard = () => {
   const [departmentRemarks, setDepartmentRemarks] = useState("");
   const [resolutionImage, setResolutionImage] = useState(null);
   const [imageError, setImageError] = useState("");
+  const [departmentInfo, setDepartmentInfo] = useState(null);
+  const [newStatus, setNewStatus] = useState("");
+  const [showStatusChangeSection, setShowStatusChangeSection] = useState(false);
 
-  const departmentLabels = {
-    academic: "Academic Affairs",
-    facilities: "Facilities Management",
-    finance: "Finance Office",
-    hr: "Human Resources",
-    security: "Security Office",
-    registrar: "Registrar",
-    student_affairs: "Student Affairs",
+  // Fetch department info from database
+  useEffect(() => {
+    const fetchDepartmentInfo = async () => {
+      if (!userDepartment) return;
+      try {
+        const { data } = await supabase
+          .from("departments")
+          .select("*")
+          .eq("code", userDepartment)
+          .single();
+        if (data) {
+          setDepartmentInfo(data);
+        }
+      } catch (err) {
+        console.error("Error fetching department info:", err);
+      }
+    };
+    fetchDepartmentInfo();
+  }, [userDepartment]);
+
+  // Get department display name
+  const getDepartmentName = () => {
+    if (departmentInfo?.name) return departmentInfo.name;
+    // Fallback to formatted code
+    return userDepartment?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) || "Department";
   };
 
   const statusConfig = {
@@ -63,10 +84,25 @@ const DepartmentDashboard = () => {
       color: "bg-orange-100 text-orange-800",
       icon: Clock,
     },
+    backlog: {
+      label: "Backlog",
+      color: "bg-purple-100 text-purple-800",
+      icon: Clock,
+    },
     resolved: {
       label: "Resolved",
       color: "bg-green-100 text-green-800",
       icon: CheckCircle,
+    },
+    closed: {
+      label: "Closed",
+      color: "bg-gray-100 text-gray-800",
+      icon: CheckCircle,
+    },
+    disputed: {
+      label: "Disputed",
+      color: "bg-amber-100 text-amber-800",
+      icon: AlertCircle,
     },
   };
 
@@ -83,7 +119,7 @@ const DepartmentDashboard = () => {
         .from("complaints")
         .select("*")
         .eq("assigned_department", userDepartment)
-        .in("status", ["verified", "in_progress", "resolved"])
+        .in("status", ["verified", "in_progress", "backlog", "resolved", "closed", "disputed"])
         .order("created_at", { ascending: false });
 
       if (filterStatus !== "all") {
@@ -127,8 +163,7 @@ const DepartmentDashboard = () => {
 
       // Send email notification if user provided email
       if (selectedComplaint.email) {
-        const deptLabel =
-          departmentLabels[userDepartment] || userDepartment;
+        const deptLabel = getDepartmentName();
         await sendTicketInProgressEmail({
           to: selectedComplaint.email,
           referenceNumber: selectedComplaint.reference_number,
@@ -306,7 +341,10 @@ const DepartmentDashboard = () => {
     total: complaints.length,
     pending: complaints.filter((c) => c.status === "verified").length,
     inProgress: complaints.filter((c) => c.status === "in_progress").length,
+    backlog: complaints.filter((c) => c.status === "backlog").length,
     resolved: complaints.filter((c) => c.status === "resolved").length,
+    closed: complaints.filter((c) => c.status === "closed").length,
+    disputed: complaints.filter((c) => c.status === "disputed").length,
   };
 
   return (
@@ -323,16 +361,16 @@ const DepartmentDashboard = () => {
                 Department Dashboard
               </h1>
               <p className="text-gray-600">
-                {departmentLabels[userDepartment] || userDepartment}
+                {getDepartmentName()}
               </p>
             </div>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
           <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-            <p className="text-sm text-gray-500">Total Assigned</p>
+            <p className="text-sm text-gray-500">Total</p>
             <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
           </div>
           <div className="bg-white rounded-xl p-4 border border-gold-100 shadow-sm">
@@ -341,15 +379,23 @@ const DepartmentDashboard = () => {
           </div>
           <div className="bg-white rounded-xl p-4 border border-orange-100 shadow-sm">
             <p className="text-sm text-orange-600">In Progress</p>
-            <p className="text-2xl font-bold text-orange-700">
-              {stats.inProgress}
-            </p>
+            <p className="text-2xl font-bold text-orange-700">{stats.inProgress}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-purple-100 shadow-sm">
+            <p className="text-sm text-purple-600">Backlog</p>
+            <p className="text-2xl font-bold text-purple-700">{stats.backlog}</p>
           </div>
           <div className="bg-white rounded-xl p-4 border border-green-100 shadow-sm">
             <p className="text-sm text-green-600">Resolved</p>
-            <p className="text-2xl font-bold text-green-700">
-              {stats.resolved}
-            </p>
+            <p className="text-2xl font-bold text-green-700">{stats.resolved}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <p className="text-sm text-gray-600">Closed</p>
+            <p className="text-2xl font-bold text-gray-700">{stats.closed}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
+            <p className="text-sm text-amber-600">Disputed</p>
+            <p className="text-2xl font-bold text-amber-700">{stats.disputed}</p>
           </div>
         </div>
 
@@ -578,15 +624,54 @@ const DepartmentDashboard = () => {
 
               {/* Modal Body */}
               <div className="p-6 space-y-6">
-                {/* Status */}
-                <div className="flex items-center justify-between">
+                {/* Status with Dropdown */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <span className="text-sm text-gray-500">Current Status</span>
-                  <span
-                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${statusConfig[selectedComplaint.status]?.color
-                      }`}
-                  >
-                    {statusConfig[selectedComplaint.status]?.label}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${statusConfig[selectedComplaint.status]?.color}`}
+                    >
+                      {statusConfig[selectedComplaint.status]?.label}
+                    </span>
+                    <select
+                      value={newStatus}
+                      onChange={(e) => {
+                        setNewStatus(e.target.value);
+                        setShowStatusChangeSection(!!e.target.value);
+                      }}
+                      className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white"
+                    >
+                      <option value="">Change Status...</option>
+                      {selectedComplaint.status === "verified" && (
+                        <>
+                          <option value="in_progress">Start Progress</option>
+                          <option value="backlog">Move to Backlog</option>
+                        </>
+                      )}
+                      {selectedComplaint.status === "in_progress" && (
+                        <>
+                          <option value="resolved">Mark Resolved</option>
+                          <option value="backlog">Move to Backlog</option>
+                          <option value="verified">Back to Pending</option>
+                        </>
+                      )}
+                      {selectedComplaint.status === "backlog" && (
+                        <>
+                          <option value="in_progress">Start Progress</option>
+                          <option value="verified">Back to Pending</option>
+                        </>
+                      )}
+                      {selectedComplaint.status === "resolved" && (
+                        <>
+                          <option value="in_progress">Reopen</option>
+                          <option value="closed">Close Ticket</option>
+                        </>
+                      )}
+                      {selectedComplaint.status === "disputed" && (
+                        <option value="in_progress">Reopen for Review</option>
+                      )}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Info Grid */}

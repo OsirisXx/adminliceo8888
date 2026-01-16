@@ -36,7 +36,23 @@ import {
   ChevronLeft,
   ChevronRight,
   Columns,
+  TrendingUp,
 } from "lucide-react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  BarChart,
+  Bar,
+} from "recharts";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -60,16 +76,35 @@ const AdminDashboard = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [paginationEnabled, setPaginationEnabled] = useState(true);
   const [columnCount, setColumnCount] = useState(1);
+  const [departments, setDepartments] = useState([]);
+  const [chartTimeRange, setChartTimeRange] = useState("all");
 
-  const departments = [
-    { value: "academic", label: "Academic Affairs" },
-    { value: "facilities", label: "Facilities Management" },
-    { value: "finance", label: "Finance Office" },
-    { value: "hr", label: "Human Resources" },
-    { value: "security", label: "Security Office" },
-    { value: "registrar", label: "Registrar" },
-    { value: "student_affairs", label: "Student Affairs" },
-  ];
+  // Fetch departments from database
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("departments")
+          .select("id, name, code")
+          .eq("is_active", true)
+          .order("name");
+
+        if (error) throw error;
+
+        const formattedDepts = (data || []).map((dept) => ({
+          value: dept.code,
+          label: dept.name,
+        }));
+        setDepartments(formattedDepts);
+      } catch (err) {
+        console.error("Error fetching departments:", err);
+        // Fallback to empty array
+        setDepartments([]);
+      }
+    };
+
+    fetchDepartments();
+  }, []);
 
   const statusConfig = {
     submitted: {
@@ -106,6 +141,11 @@ const AdminDashboard = () => {
       label: "Disputed",
       color: "bg-amber-100 text-amber-800",
       icon: AlertCircle,
+    },
+    backlog: {
+      label: "Backlog",
+      color: "bg-purple-100 text-purple-800",
+      icon: Clock,
     },
   };
 
@@ -444,6 +484,7 @@ const AdminDashboard = () => {
     submitted: complaints.filter((c) => c.status === "submitted").length,
     verified: complaints.filter((c) => c.status === "verified").length,
     inProgress: complaints.filter((c) => c.status === "in_progress").length,
+    backlog: complaints.filter((c) => c.status === "backlog").length,
     resolved: complaints.filter((c) => c.status === "resolved").length,
     closed: complaints.filter((c) => c.status === "closed").length,
     disputed: complaints.filter((c) => c.status === "disputed").length,
@@ -490,6 +531,10 @@ const AdminDashboard = () => {
               {stats.inProgress}
             </p>
           </div>
+          <div className="bg-white rounded-xl p-4 border border-purple-100 shadow-sm">
+            <p className="text-sm text-purple-600">Backlog</p>
+            <p className="text-2xl font-bold text-purple-700">{stats.backlog}</p>
+          </div>
           <div className="bg-white rounded-xl p-4 border border-green-100 shadow-sm">
             <p className="text-sm text-green-600">Resolved</p>
             <p className="text-2xl font-bold text-green-700">
@@ -509,6 +554,132 @@ const AdminDashboard = () => {
           <div className="bg-white rounded-xl p-4 border border-red-100 shadow-sm">
             <p className="text-sm text-red-600">Rejected</p>
             <p className="text-2xl font-bold text-red-700">{stats.rejected}</p>
+          </div>
+        </div>
+
+        {/* Complaints Trend Area Chart */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm mb-8">
+          <div className="p-6 pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Complaints Overview</h3>
+              <p className="text-sm text-gray-500">Showing complaint statistics by status</p>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {[
+                { value: "1d", label: "1D" },
+                { value: "7d", label: "7D" },
+                { value: "1m", label: "1M" },
+                { value: "3m", label: "3M" },
+                { value: "6m", label: "6M" },
+                { value: "1y", label: "1Y" },
+                { value: "all", label: "All" },
+              ].map((range) => (
+                <button
+                  key={range.value}
+                  onClick={() => setChartTimeRange(range.value)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                    chartTimeRange === range.value
+                      ? "bg-maroon-800 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {range.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="p-6 pt-0">
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={(() => {
+                    // Filter complaints by time range
+                    const now = new Date();
+                    let filteredComplaints = complaints;
+                    
+                    if (chartTimeRange !== "all") {
+                      const ranges = {
+                        "1d": 1,
+                        "7d": 7,
+                        "1m": 30,
+                        "3m": 90,
+                        "6m": 180,
+                        "1y": 365,
+                      };
+                      const daysAgo = ranges[chartTimeRange] || 365;
+                      const cutoffDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+                      filteredComplaints = complaints.filter(
+                        (c) => new Date(c.created_at) >= cutoffDate
+                      );
+                    }
+                    
+                    // Calculate stats for filtered data
+                    return [
+                      { name: "Submitted", count: filteredComplaints.filter((c) => c.status === "submitted").length, fill: "#3B82F6" },
+                      { name: "Verified", count: filteredComplaints.filter((c) => c.status === "verified").length, fill: "#D4AF37" },
+                      { name: "In Progress", count: filteredComplaints.filter((c) => c.status === "in_progress").length, fill: "#F97316" },
+                      { name: "Backlog", count: filteredComplaints.filter((c) => c.status === "backlog").length, fill: "#8B5CF6" },
+                      { name: "Resolved", count: filteredComplaints.filter((c) => c.status === "resolved").length, fill: "#22C55E" },
+                      { name: "Closed", count: filteredComplaints.filter((c) => c.status === "closed").length, fill: "#6B7280" },
+                      { name: "Disputed", count: filteredComplaints.filter((c) => c.status === "disputed").length, fill: "#F59E0B" },
+                      { name: "Rejected", count: filteredComplaints.filter((c) => c.status === "rejected").length, fill: "#EF4444" },
+                    ];
+                  })()}
+                  margin={{ left: -20, right: 12, top: 10, bottom: 0 }}
+                >
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(value) => value.slice(0, 3)}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tickCount={5}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    contentStyle={{ 
+                      borderRadius: "8px", 
+                      border: "1px solid #e5e7eb",
+                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+                    }}
+                    formatter={(value, name) => [value, "Count"]}
+                  />
+                  <Area
+                    dataKey="count"
+                    type="monotone"
+                    fill="#7C2D2D"
+                    fillOpacity={0.4}
+                    stroke="#7C2D2D"
+                    strokeWidth={2}
+                    name="Complaints"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="px-6 pb-6 pt-2 border-t border-gray-100">
+            <div className="flex w-full items-start gap-2 text-sm">
+              <div className="grid gap-2">
+                <div className="flex items-center gap-2 leading-none font-medium text-gray-900">
+                  Total: {stats.total} complaints <TrendingUp className="h-4 w-4 text-green-500" />
+                </div>
+                <div className="text-gray-500 flex flex-wrap items-center gap-2 leading-none text-xs">
+                  <span className="text-blue-600">{stats.submitted} submitted</span> •
+                  <span className="text-yellow-600">{stats.verified} verified</span> •
+                  <span className="text-orange-600">{stats.inProgress} in progress</span> •
+                  <span className="text-purple-600">{stats.backlog || 0} backlog</span> •
+                  <span className="text-green-600">{stats.resolved} resolved</span> •
+                  <span className="text-gray-600">{stats.closed} closed</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1109,6 +1280,7 @@ const AdminDashboard = () => {
                         <option value="submitted">Submitted</option>
                         <option value="verified">Verified</option>
                         <option value="in_progress">In Progress</option>
+                        <option value="backlog">Backlog</option>
                         <option value="resolved">Resolved</option>
                         <option value="closed">Closed</option>
                         <option value="disputed">Disputed</option>

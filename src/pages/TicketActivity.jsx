@@ -24,7 +24,7 @@ import {
 const TicketActivity = () => {
   const { referenceNumber } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, userRole, userDepartment } = useAuth();
   const [complaint, setComplaint] = useState(null);
   const [comments, setComments] = useState([]);
   const [auditTrail, setAuditTrail] = useState([]);
@@ -103,14 +103,19 @@ const TicketActivity = () => {
 
     setCommentLoading(true);
     try {
-      const userRole = user.role || "admin";
-      const authorName = user.full_name || user.email?.split("@")[0] || "Admin";
+      const authorName = user.full_name || user.email?.split("@")[0] || "Staff";
+      
+      // Determine author_type based on userRole from AuthContext
+      let authorType = "admin";
+      if (userRole === "department_staff" || userDepartment) {
+        authorType = "department";
+      }
 
       const { error } = await supabase.from("ticket_comments").insert({
         complaint_id: complaint.id,
         content: newComment.trim(),
         author_name: authorName,
-        author_type: userRole === "department" ? "department" : "admin",
+        author_type: authorType,
         author_id: user.id,
         is_internal: isInternal,
       });

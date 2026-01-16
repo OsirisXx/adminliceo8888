@@ -52,9 +52,15 @@ const SuperAdminDashboard = () => {
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [departmentModalOpen, setDepartmentModalOpen] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordStep, setPasswordStep] = useState(1); // 1: form, 2: confirm, 3: success
 
   // Search State
   const [userSearchQuery, setUserSearchQuery] = useState("");
@@ -82,7 +88,7 @@ const SuperAdminDashboard = () => {
   const fetchStats = useCallback(async () => {
     try {
       const [usersResult, complaintsResult, deptsResult] = await Promise.all([
-        supabase.from("admin_users").select("*", { count: "exact" }),
+        supabase.from("users").select("*", { count: "exact" }),
         supabase.from("complaints").select("*", { count: "exact" }),
         supabase
           .from("departments")
@@ -110,7 +116,7 @@ const SuperAdminDashboard = () => {
   const fetchUsers = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from("admin_users")
+        .from("users")
         .select("*")
         .order("created_at", { ascending: false });
 
@@ -273,7 +279,7 @@ const SuperAdminDashboard = () => {
     if (userId) {
       // Update existing user
       const { error } = await supabase
-        .from("admin_users")
+        .from("users")
         .update({
           full_name: formData.full_name,
           role: formData.role,
@@ -284,8 +290,22 @@ const SuperAdminDashboard = () => {
 
       if (error) throw error;
     } else {
-      // Create new user - in real app, this would create auth user too
-      const { error } = await supabase.from("admin_users").insert({
+      // Create new user with auth account
+      // First create the auth user
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: formData.email,
+        password: formData.password,
+        email_confirm: true, // Auto-confirm email
+        user_metadata: {
+          full_name: formData.full_name,
+        },
+      });
+
+      if (authError) throw authError;
+
+      // Then create/update the user profile in our users table
+      const { error: profileError } = await supabase.from("users").upsert({
+        id: authData.user.id,
         email: formData.email,
         full_name: formData.full_name,
         role: formData.role,
@@ -293,7 +313,7 @@ const SuperAdminDashboard = () => {
         is_active: formData.is_active,
       });
 
-      if (error) throw error;
+      if (profileError) throw profileError;
     }
 
     await fetchUsers();
@@ -304,7 +324,7 @@ const SuperAdminDashboard = () => {
     if (!selectedUser) return;
 
     const { error } = await supabase
-      .from("admin_users")
+      .from("users")
       .delete()
       .eq("id", selectedUser.id);
 
@@ -318,7 +338,7 @@ const SuperAdminDashboard = () => {
 
   const handleToggleUserStatus = async (user) => {
     const { error } = await supabase
-      .from("admin_users")
+      .from("users")
       .update({ is_active: user.is_active === false })
       .eq("id", user.id);
 
@@ -327,6 +347,76 @@ const SuperAdminDashboard = () => {
       return;
     }
     await fetchUsers();
+  };
+
+  // Inline update user (for dropdowns)
+  const handleInlineUpdateUser = async (userId, updates) => {
+    const { error } = await supabase
+      .from("users")
+      .update(updates)
+      .eq("id", userId);
+
+    if (error) {
+      console.error("Error updating user:", error);
+      return;
+    }
+    await fetchUsers();
+  };
+
+  // Password change handler
+  const handleOpenPasswordModal = (user) => {
+    setSelectedUser(user);
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordError("");
+    setPasswordStep(1);
+    setPasswordModalOpen(true);
+  };
+
+  const handleChangePassword = async () => {
+    // Validation
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordError("Password must be at least 6 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+
+    // Show first confirmation
+    setPasswordStep(2);
+  };
+
+  const handleConfirmPasswordChange = async () => {
+    setPasswordLoading(true);
+    try {
+      // Send password reset email instead of using admin API
+      // This is safer as it doesn't require service role key on client
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        selectedUser.email,
+        { redirectTo: `${window.location.origin}/login` }
+      );
+
+      if (error) throw error;
+
+      setPasswordStep(3); // Show success
+    } catch (err) {
+      console.error("Error sending password reset:", err);
+      setPasswordError(err.message || "Failed to send password reset email");
+      setPasswordStep(1);
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const closePasswordModal = () => {
+    setPasswordModalOpen(false);
+    setSelectedUser(null);
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordError("");
+    setPasswordStep(1);
   };
 
   // Department CRUD operations
@@ -479,12 +569,14 @@ const SuperAdminDashboard = () => {
             stats={stats}
             recentActivity={recentActivity}
             loading={loading}
+            complaints={complaints}
           />
         );
       case "users":
         return (
           <UsersSection
             users={users}
+            departments={departmentsList}
             loading={loading}
             searchQuery={userSearchQuery}
             setSearchQuery={setUserSearchQuery}
@@ -502,6 +594,8 @@ const SuperAdminDashboard = () => {
               setConfirmModalOpen(true);
             }}
             onToggleStatus={handleToggleUserStatus}
+            onUpdateUser={handleInlineUpdateUser}
+            onChangePassword={handleOpenPasswordModal}
           />
         );
       case "departments":
@@ -642,6 +736,185 @@ const SuperAdminDashboard = () => {
         confirmText="Delete"
         confirmVariant="danger"
       />
+
+      {/* Password Change Modal - Multi-step */}
+      {passwordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={closePasswordModal}
+          />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+            {/* Step 1: Enter Password */}
+            {passwordStep === 1 && (
+              <>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-amber-500 to-amber-600">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                      <Shield size={20} className="text-white" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-white">
+                      Reset Password
+                    </h2>
+                  </div>
+                  <button
+                    onClick={closePasswordModal}
+                    className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <AlertCircle size={20} className="text-blue-600 flex-shrink-0" />
+                    <p className="text-sm text-blue-700">
+                      A password reset link will be sent to the user's email address.
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-500 mb-1">User Email</p>
+                    <p className="font-medium text-gray-900">{selectedUser?.email}</p>
+                  </div>
+                  
+                  {passwordError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 flex items-center gap-2">
+                      <AlertCircle size={16} />
+                      {passwordError}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={closePasswordModal}
+                      className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => setPasswordStep(2)}
+                      className="flex-1 px-4 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Step 2: Confirm */}
+            {passwordStep === 2 && (
+              <>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-red-500 to-red-600">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                      <AlertCircle size={20} className="text-white" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-white">
+                      Confirm Action
+                    </h2>
+                  </div>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="text-center py-4">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <AlertCircle size={32} className="text-red-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Are you absolutely sure?
+                    </h3>
+                    <p className="text-gray-600">
+                      This will send a password reset email to:
+                    </p>
+                    <p className="font-semibold text-maroon-800 mt-1">
+                      {selectedUser?.email}
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-800">
+                      <strong>Warning:</strong> The user will receive an email with a link to reset their password. 
+                      Their current password will remain active until they complete the reset process.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setPasswordStep(1)}
+                      className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Go Back
+                    </button>
+                    <button
+                      onClick={handleConfirmPasswordChange}
+                      disabled={passwordLoading}
+                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {passwordLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          Sending...
+                        </>
+                      ) : (
+                        "Yes, Send Reset Email"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Step 3: Success */}
+            {passwordStep === 3 && (
+              <>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-500 to-green-600">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                      <CheckCircle size={20} className="text-white" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-white">
+                      Success!
+                    </h2>
+                  </div>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="text-center py-4">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle size={32} className="text-green-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Password Reset Email Sent!
+                    </h3>
+                    <p className="text-gray-600">
+                      A password reset link has been sent to:
+                    </p>
+                    <p className="font-semibold text-maroon-800 mt-1">
+                      {selectedUser?.email}
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm text-green-800">
+                      The user should check their email inbox (and spam folder) for the password reset link. 
+                      The link will expire after 24 hours.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={closePasswordModal}
+                    className="w-full px-4 py-2.5 bg-maroon-800 text-white rounded-lg hover:bg-maroon-900 transition-colors font-medium"
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

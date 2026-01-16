@@ -9,22 +9,40 @@ import {
   UserCheck,
   UserX,
   MoreVertical,
+  Key,
+  Loader2,
 } from "lucide-react";
 
 const roleColors = {
   super_admin: "bg-purple-100 text-purple-800",
-  office_admin: "bg-blue-100 text-blue-800",
-  department_staff: "bg-green-100 text-green-800",
+  admin: "bg-blue-100 text-blue-800",
+  department: "bg-green-100 text-green-800",
+  faculty: "bg-teal-100 text-teal-800",
+  employee: "bg-orange-100 text-orange-800",
+  student: "bg-yellow-100 text-yellow-800",
 };
 
 const roleLabels = {
   super_admin: "Super Admin",
-  office_admin: "Office Admin",
-  department_staff: "Department Staff",
+  admin: "Admin",
+  department: "Department Staff",
+  faculty: "Faculty",
+  employee: "Employee",
+  student: "Student",
 };
+
+const roleOptions = [
+  { value: "student", label: "Student" },
+  { value: "faculty", label: "Faculty" },
+  { value: "employee", label: "Employee" },
+  { value: "department", label: "Department Staff" },
+  { value: "admin", label: "Admin" },
+  { value: "super_admin", label: "Super Admin" },
+];
 
 const UsersSection = ({
   users,
+  departments,
   loading,
   searchQuery,
   setSearchQuery,
@@ -32,8 +50,11 @@ const UsersSection = ({
   onEditUser,
   onDeleteUser,
   onToggleStatus,
+  onUpdateUser,
+  onChangePassword,
 }) => {
   const [selectedRole, setSelectedRole] = useState("all");
+  const [updatingUser, setUpdatingUser] = useState(null);
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
@@ -96,8 +117,11 @@ const UsersSection = ({
           >
             <option value="all">All Roles</option>
             <option value="super_admin">Super Admin</option>
-            <option value="office_admin">Office Admin</option>
-            <option value="department_staff">Department Staff</option>
+            <option value="admin">Admin</option>
+            <option value="department">Department Staff</option>
+            <option value="faculty">Faculty</option>
+            <option value="employee">Employee</option>
+            <option value="student">Student</option>
           </select>
         </div>
       </div>
@@ -143,42 +167,72 @@ const UsersSection = ({
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                      <select
+                        value={user.role || "student"}
+                        onChange={async (e) => {
+                          setUpdatingUser(user.id);
+                          await onUpdateUser(user.id, { role: e.target.value });
+                          setUpdatingUser(null);
+                        }}
+                        disabled={updatingUser === user.id}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border-0 cursor-pointer focus:ring-2 focus:ring-maroon-500 ${
                           roleColors[user.role] || "bg-gray-100 text-gray-800"
                         }`}
                       >
-                        <Shield size={12} />
-                        {roleLabels[user.role] || user.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {user.department || "—"}
+                        {roleOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-6 py-4">
-                      <button
-                        onClick={() => onToggleStatus(user)}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      <select
+                        value={user.department || ""}
+                        onChange={async (e) => {
+                          setUpdatingUser(user.id);
+                          await onUpdateUser(user.id, { department: e.target.value });
+                          setUpdatingUser(null);
+                        }}
+                        disabled={updatingUser === user.id}
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 cursor-pointer focus:ring-2 focus:ring-maroon-500 bg-white min-w-[140px]"
+                      >
+                        <option value="">No Department</option>
+                        {departments?.map((dept) => (
+                          <option key={dept.id || dept.code} value={dept.code}>
+                            {dept.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-6 py-4">
+                      <select
+                        value={user.is_active !== false ? "active" : "inactive"}
+                        onChange={async (e) => {
+                          setUpdatingUser(user.id);
+                          await onUpdateUser(user.id, { is_active: e.target.value === "active" });
+                          setUpdatingUser(null);
+                        }}
+                        disabled={updatingUser === user.id}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border-0 cursor-pointer focus:ring-2 focus:ring-maroon-500 ${
                           user.is_active !== false
-                            ? "bg-green-100 text-green-800 hover:bg-green-200"
-                            : "bg-red-100 text-red-800 hover:bg-red-200"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
                         }`}
                       >
-                        {user.is_active !== false ? (
-                          <>
-                            <UserCheck size={12} />
-                            Active
-                          </>
-                        ) : (
-                          <>
-                            <UserX size={12} />
-                            Inactive
-                          </>
-                        )}
-                      </button>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => onChangePassword(user)}
+                          className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                          title="Change password"
+                        >
+                          <Key size={16} />
+                        </button>
                         <button
                           onClick={() => onEditUser(user)}
                           className="p-2 text-gray-500 hover:text-maroon-800 hover:bg-gray-100 rounded-lg transition-colors"
