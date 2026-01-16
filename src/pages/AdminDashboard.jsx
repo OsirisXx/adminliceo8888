@@ -315,6 +315,7 @@ const AdminDashboard = () => {
         verified: "Verified",
         rejected: "Rejected",
         in_progress: "In Progress",
+        backlog: "Backlog",
         resolved: "Resolved",
         closed: "Closed",
         disputed: "Disputed",

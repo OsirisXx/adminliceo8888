@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import {
   sendTicketInProgressEmail,
   sendTicketResolvedEmail,
+  sendTicketStatusChangedEmail,
 } from "../lib/resend";
 import {
   Building2,
@@ -268,6 +269,75 @@ const DepartmentDashboard = () => {
     } catch (err) {
       console.error("Error resolving complaint:", err);
       alert("Failed to resolve complaint");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Generic status change handler for dropdown selections
+  const handleStatusChange = async () => {
+    if (!newStatus) {
+      alert("Please select a new status");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const { error: updateError } = await supabase
+        .from("complaints")
+        .update({
+          status: newStatus,
+          department_remarks: departmentRemarks || selectedComplaint.department_remarks,
+        })
+        .eq("id", selectedComplaint.id);
+
+      if (updateError) throw updateError;
+
+      const statusLabels = {
+        verified: "Pending",
+        in_progress: "In Progress",
+        backlog: "Backlog",
+        resolved: "Resolved",
+        closed: "Closed",
+        disputed: "Disputed",
+      };
+
+      // Insert audit trail entry
+      await supabase.from("audit_trail").insert({
+        complaint_id: selectedComplaint.id,
+        action: `Status Changed to ${statusLabels[newStatus] || newStatus}`,
+        performed_by: user.id,
+        details: `Department changed status from ${
+          statusLabels[selectedComplaint.status] || selectedComplaint.status
+        } to ${statusLabels[newStatus] || newStatus}${
+          departmentRemarks ? `. Remarks: ${departmentRemarks}` : ""
+        }`,
+      });
+
+      // Send email notification if user provided email
+      if (selectedComplaint.email) {
+        try {
+          await sendTicketStatusChangedEmail({
+            to: selectedComplaint.email,
+            referenceNumber: selectedComplaint.reference_number,
+            oldStatus: statusLabels[selectedComplaint.status] || selectedComplaint.status,
+            newStatus: statusLabels[newStatus] || newStatus,
+            remarks: departmentRemarks,
+          });
+        } catch (emailErr) {
+          console.error("Error sending email:", emailErr);
+        }
+      }
+
+      setShowModal(false);
+      setSelectedComplaint(null);
+      setDepartmentRemarks("");
+      setNewStatus("");
+      setShowStatusChangeSection(false);
+      fetchComplaints();
+    } catch (err) {
+      console.error("Error changing status:", err);
+      alert("Failed to change status");
     } finally {
       setActionLoading(false);
     }
@@ -671,8 +741,33 @@ const DepartmentDashboard = () => {
                         <option value="in_progress">Reopen for Review</option>
                       )}
                     </select>
+                    {newStatus && newStatus !== selectedComplaint.status && (
+                      <button
+                        onClick={handleStatusChange}
+                        disabled={actionLoading}
+                        className="px-3 py-1.5 bg-maroon-800 text-white rounded-lg text-sm font-medium hover:bg-maroon-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {actionLoading ? "Applying..." : "Apply"}
+                      </button>
+                    )}
                   </div>
                 </div>
+
+                {/* Remarks for status change */}
+                {newStatus && newStatus !== selectedComplaint.status && (
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Remarks for Status Change <span className="text-gray-400">(optional)</span>
+                    </label>
+                    <textarea
+                      value={departmentRemarks}
+                      onChange={(e) => setDepartmentRemarks(e.target.value)}
+                      rows={2}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
+                      placeholder="Add remarks for this status change..."
+                    />
+                  </div>
+                )}
 
                 {/* Info Grid */}
                 <div className="grid md:grid-cols-2 gap-4">

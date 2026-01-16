@@ -81,6 +81,15 @@ CREATE INDEX IF NOT EXISTS idx_complaints_user_id ON complaints(user_id);
 ALTER TABLE complaints DROP CONSTRAINT IF EXISTS complaints_category_check;
 
 
+-- ========== TASK 6: ADD BACKLOG STATUS TO COMPLAINTS ==========
+-- Drop the old status constraint if it exists
+ALTER TABLE complaints DROP CONSTRAINT IF EXISTS complaints_status_check;
+
+-- Add new status constraint with backlog included
+ALTER TABLE complaints ADD CONSTRAINT complaints_status_check 
+  CHECK (status IN ('submitted', 'verified', 'rejected', 'in_progress', 'backlog', 'resolved', 'closed', 'disputed'));
+
+
 -- ========== VERIFY ==========
 -- Check the current state
 SELECT id, email, role, department FROM users ORDER BY created_at DESC LIMIT 20;

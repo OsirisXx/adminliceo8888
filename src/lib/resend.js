@@ -380,6 +380,38 @@ export const sendTicketInProgressEmail = async ({
 };
 
 /**
+ * Get status color for email badge
+ */
+const getStatusColor = (status) => {
+  const statusLower = status.toLowerCase();
+  const colors = {
+    submitted: { bg: "#DBEAFE", text: "#1E40AF", border: "#3B82F6" },
+    pending: { bg: "#DBEAFE", text: "#1E40AF", border: "#3B82F6" },
+    verified: { bg: "#FEF3C7", text: "#92400E", border: "#F59E0B" },
+    in_progress: { bg: "#FFEDD5", text: "#C2410C", border: "#F97316" },
+    "in progress": { bg: "#FFEDD5", text: "#C2410C", border: "#F97316" },
+    backlog: { bg: "#EDE9FE", text: "#6B21A8", border: "#8B5CF6" },
+    resolved: { bg: "#DCFCE7", text: "#166534", border: "#22C55E" },
+    closed: { bg: "#F3F4F6", text: "#374151", border: "#6B7280" },
+    disputed: { bg: "#FEF3C7", text: "#92400E", border: "#F59E0B" },
+    rejected: { bg: "#FEE2E2", text: "#991B1B", border: "#EF4444" },
+  };
+  return colors[statusLower] || colors.submitted;
+};
+
+/**
+ * Generate status badge HTML for emails
+ */
+const emailStatusBadge = (status) => {
+  const colors = getStatusColor(status);
+  return `
+    <span style="display: inline-block; background-color: ${colors.bg}; color: ${colors.text}; border: 2px solid ${colors.border}; padding: 8px 20px; border-radius: 25px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+      ${status}
+    </span>
+  `;
+};
+
+/**
  * Send ticket status changed email (admin override)
  */
 export const sendTicketStatusChangedEmail = async ({
@@ -391,42 +423,55 @@ export const sendTicketStatusChangedEmail = async ({
 }) => {
   const html = generateEmailTemplate({
     title: "Complaint Status Updated",
-    greeting: "Your complaint status has been updated by the administrator.",
+    greeting: "Your complaint status has been updated.",
     content: `
       <p style="margin: 0 0 15px 0; color: #555; font-size: 15px; line-height: 1.6;">
-        The status of your complaint has been changed by the VP Admin.
+        The status of your complaint has been changed.
       </p>
       
       ${ticketReferenceBox(referenceNumber)}
       
-      <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
-        <p style="margin: 0 0 10px 0; color: #333; font-size: 14px;">
-          <strong>Previous Status:</strong> ${oldStatus}
+      <div style="background-color: #f9f9f9; border-radius: 12px; padding: 25px; margin: 20px 0; text-align: center;">
+        <p style="margin: 0 0 15px 0; color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">
+          Status Changed From
         </p>
-        <p style="margin: 0; color: #333; font-size: 14px;">
-          <strong>New Status:</strong> ${newStatus}
+        <div style="margin-bottom: 20px;">
+          ${emailStatusBadge(oldStatus)}
+        </div>
+        
+        <div style="margin: 15px 0;">
+          <span style="display: inline-block; color: #999; font-size: 24px;">↓</span>
+        </div>
+        
+        <p style="margin: 15px 0 15px 0; color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">
+          New Status
         </p>
-        ${remarks
-        ? `
-          <p style="margin: 15px 0 0 0; color: #666; font-size: 14px;">
-            <strong>Remarks:</strong><br>
+        <div style="margin-bottom: 10px;">
+          ${emailStatusBadge(newStatus)}
+        </div>
+      </div>
+      
+      ${remarks ? `
+        <div style="background-color: #FFF7ED; border-left: 4px solid ${COLORS.gold}; padding: 15px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0 0 5px 0; color: #92400E; font-size: 13px; font-weight: 600; text-transform: uppercase;">
+            Remarks
+          </p>
+          <p style="margin: 0; color: #78350F; font-size: 14px; line-height: 1.6;">
             ${remarks}
           </p>
-        `
-        : ""
-      }
-      </div>
+        </div>
+      ` : ""}
       
       <p style="margin: 20px 0 0 0; color: #555; font-size: 14px;">
         If you have any questions about this status change, please contact the 
-        administration office.
+        administration office or track your complaint online.
       </p>
     `,
   });
 
   return sendEmail({
     to,
-    subject: `[Liceo 8888] Status Updated - ${referenceNumber}`,
+    subject: `[Liceo 8888] Status Updated to ${newStatus} - ${referenceNumber}`,
     html,
   });
 };
