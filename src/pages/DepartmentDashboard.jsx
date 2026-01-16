@@ -108,10 +108,10 @@ const DepartmentDashboard = () => {
   };
 
   useEffect(() => {
-    if (userDepartment) {
+    if (user?.id) {
       fetchComplaints();
     }
-  }, [userDepartment, filterStatus]);
+  }, [user?.id, filterStatus]);
 
   const fetchComplaints = async () => {
     setLoading(true);
@@ -119,7 +119,7 @@ const DepartmentDashboard = () => {
       let query = supabase
         .from("complaints")
         .select("*")
-        .eq("assigned_department", userDepartment)
+        .eq("assigned_to", user.id)
         .in("status", ["verified", "in_progress", "backlog", "resolved", "closed", "disputed"])
         .order("created_at", { ascending: false });
 
@@ -415,6 +415,7 @@ const DepartmentDashboard = () => {
     resolved: complaints.filter((c) => c.status === "resolved").length,
     closed: complaints.filter((c) => c.status === "closed").length,
     disputed: complaints.filter((c) => c.status === "disputed").length,
+    rejected: complaints.filter((c) => c.status === "rejected").length,
   };
 
   return (
@@ -438,7 +439,7 @@ const DepartmentDashboard = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
           <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <p className="text-sm text-gray-500">Total</p>
             <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
@@ -466,6 +467,10 @@ const DepartmentDashboard = () => {
           <div className="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
             <p className="text-sm text-amber-600">Disputed</p>
             <p className="text-2xl font-bold text-amber-700">{stats.disputed}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-red-100 shadow-sm">
+            <p className="text-sm text-red-600">Rejected</p>
+            <p className="text-2xl font-bold text-red-700">{stats.rejected}</p>
           </div>
         </div>
 

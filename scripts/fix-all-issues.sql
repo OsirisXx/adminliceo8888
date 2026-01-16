@@ -90,6 +90,12 @@ ALTER TABLE complaints ADD CONSTRAINT complaints_status_check
   CHECK (status IN ('submitted', 'verified', 'rejected', 'in_progress', 'backlog', 'resolved', 'closed', 'disputed'));
 
 
+-- ========== TASK 7: ADD ASSIGNED_TO COLUMN FOR STAFF ASSIGNMENT ==========
+-- This allows assigning complaints to specific staff members
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS assigned_to UUID REFERENCES auth.users(id);
+CREATE INDEX IF NOT EXISTS idx_complaints_assigned_to ON complaints(assigned_to);
+
+
 -- ========== VERIFY ==========
 -- Check the current state
 SELECT id, email, role, department FROM users ORDER BY created_at DESC LIMIT 20;

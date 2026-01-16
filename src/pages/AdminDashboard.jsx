@@ -67,6 +67,9 @@ const AdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [selectedStaff, setSelectedStaff] = useState("");
+  const [departmentStaff, setDepartmentStaff] = useState([]);
+  const [staffLoading, setStaffLoading] = useState(false);
   const [remarks, setRemarks] = useState("");
   const [newStatus, setNewStatus] = useState("");
   const [showStatusChangeSection, setShowStatusChangeSection] = useState(false);
@@ -105,6 +108,43 @@ const AdminDashboard = () => {
 
     fetchDepartments();
   }, []);
+
+  // Fetch staff when department is selected
+  useEffect(() => {
+    const fetchDepartmentStaff = async () => {
+      if (!selectedDepartment) {
+        setDepartmentStaff([]);
+        setSelectedStaff("");
+        return;
+      }
+
+      setStaffLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("id, full_name, email, role")
+          .eq("department", selectedDepartment)
+          .neq("role", "student")
+          .order("full_name");
+
+        if (error) throw error;
+
+        const formattedStaff = (data || []).map((staff) => ({
+          value: staff.id,
+          label: staff.full_name || staff.email,
+          role: staff.role,
+        }));
+        setDepartmentStaff(formattedStaff);
+      } catch (err) {
+        console.error("Error fetching department staff:", err);
+        setDepartmentStaff([]);
+      } finally {
+        setStaffLoading(false);
+      }
+    };
+
+    fetchDepartmentStaff();
+  }, [selectedDepartment]);
 
   const statusConfig = {
     submitted: {
@@ -182,6 +222,11 @@ const AdminDashboard = () => {
       return;
     }
 
+    if (!selectedStaff) {
+      alert("Please select a staff member to assign");
+      return;
+    }
+
     setActionLoading(true);
     try {
       const { error: updateError } = await supabase
@@ -189,6 +234,7 @@ const AdminDashboard = () => {
         .update({
           status: "verified",
           assigned_department: selectedDepartment,
+          assigned_to: selectedStaff,
           admin_remarks: remarks,
           verified_by: user.id,
           verified_at: new Date().toISOString(),
@@ -197,13 +243,15 @@ const AdminDashboard = () => {
 
       if (updateError) throw updateError;
 
+      const staffName = departmentStaff.find((s) => s.value === selectedStaff)?.label || "Staff";
+      
       await supabase.from("audit_trail").insert({
         complaint_id: selectedComplaint.id,
         action: "Concern Verified",
         performed_by: user.id,
         details: `Assigned to ${
           departments.find((d) => d.value === selectedDepartment)?.label
-        }. ${remarks ? `Remarks: ${remarks}` : ""}`,
+        } - ${staffName}. ${remarks ? `Remarks: ${remarks}` : ""}`,
       });
 
       // Send email notification if user provided email
@@ -222,6 +270,7 @@ const AdminDashboard = () => {
       setShowModal(false);
       setSelectedComplaint(null);
       setSelectedDepartment("");
+      setSelectedStaff("");
       setRemarks("");
       fetchComplaints();
     } catch (err) {
@@ -1438,9 +1487,10 @@ const AdminDashboard = () => {
                         />
                         <select
                           value={selectedDepartment}
-                          onChange={(e) =>
-                            setSelectedDepartment(e.target.value)
-                          }
+                          onChange={(e) => {
+                            setSelectedDepartment(e.target.value);
+                            setSelectedStaff("");
+                          }}
                           className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none appearance-none bg-white"
                         >
                           <option value="">Select a department...</option>
@@ -1456,6 +1506,45 @@ const AdminDashboard = () => {
                         />
                       </div>
                     </div>
+
+                    {/* Staff Selection - Shows after department is selected */}
+                    {selectedDepartment && (
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Assign to Staff Member
+                        </label>
+                        <div className="relative">
+                          <User
+                            size={20}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          />
+                          <select
+                            value={selectedStaff}
+                            onChange={(e) => setSelectedStaff(e.target.value)}
+                            disabled={staffLoading}
+                            className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none appearance-none bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <option value="">
+                              {staffLoading ? "Loading staff..." : "Select a staff member..."}
+                            </option>
+                            {departmentStaff.map((staff) => (
+                              <option key={staff.value} value={staff.value}>
+                                {staff.label} ({staff.role})
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown
+                            size={20}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                          />
+                        </div>
+                        {departmentStaff.length === 0 && !staffLoading && (
+                          <p className="text-sm text-amber-600 mt-2">
+                            No staff members found in this department.
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Remarks */}
                     <div className="mb-4">
@@ -1476,7 +1565,7 @@ const AdminDashboard = () => {
                     <div className="flex space-x-3">
                       <button
                         onClick={handleApprove}
-                        disabled={actionLoading || !selectedDepartment}
+                        disabled={actionLoading || !selectedDepartment || !selectedStaff}
                         className="flex-1 bg-green-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-green-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {actionLoading ? (
