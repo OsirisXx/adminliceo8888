@@ -292,14 +292,15 @@ const SuperAdminDashboard = () => {
     } else {
       // Create new user with auth account
       // First create the auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: formData.email,
-        password: formData.password,
-        email_confirm: true, // Auto-confirm email
-        user_metadata: {
-          full_name: formData.full_name,
-        },
-      });
+      const { data: authData, error: authError } =
+        await supabase.auth.admin.createUser({
+          email: formData.email,
+          password: formData.password,
+          email_confirm: true, // Auto-confirm email
+          user_metadata: {
+            full_name: formData.full_name,
+          },
+        });
 
       if (authError) throw authError;
 
@@ -351,6 +352,11 @@ const SuperAdminDashboard = () => {
 
   // Inline update user (for dropdowns)
   const handleInlineUpdateUser = async (userId, updates) => {
+    // If role is being changed to 'student', also clear the department
+    if (updates.role === "student") {
+      updates.department = null;
+    }
+
     const { error } = await supabase
       .from("users")
       .update(updates)
@@ -766,17 +772,23 @@ const SuperAdminDashboard = () => {
                 </div>
                 <div className="p-6 space-y-4">
                   <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <AlertCircle size={20} className="text-blue-600 flex-shrink-0" />
+                    <AlertCircle
+                      size={20}
+                      className="text-blue-600 flex-shrink-0"
+                    />
                     <p className="text-sm text-blue-700">
-                      A password reset link will be sent to the user's email address.
+                      A password reset link will be sent to the user's email
+                      address.
                     </p>
                   </div>
 
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-sm text-gray-500 mb-1">User Email</p>
-                    <p className="font-medium text-gray-900">{selectedUser?.email}</p>
+                    <p className="font-medium text-gray-900">
+                      {selectedUser?.email}
+                    </p>
                   </div>
-                  
+
                   {passwordError && (
                     <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 flex items-center gap-2">
                       <AlertCircle size={16} />
@@ -834,8 +846,10 @@ const SuperAdminDashboard = () => {
 
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
                     <p className="text-sm text-amber-800">
-                      <strong>Warning:</strong> The user will receive an email with a link to reset their password. 
-                      Their current password will remain active until they complete the reset process.
+                      <strong>Warning:</strong> The user will receive an email
+                      with a link to reset their password. Their current
+                      password will remain active until they complete the reset
+                      process.
                     </p>
                   </div>
 
@@ -897,8 +911,9 @@ const SuperAdminDashboard = () => {
 
                   <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                     <p className="text-sm text-green-800">
-                      The user should check their email inbox (and spam folder) for the password reset link. 
-                      The link will expire after 24 hours.
+                      The user should check their email inbox (and spam folder)
+                      for the password reset link. The link will expire after 24
+                      hours.
                     </p>
                   </div>
 

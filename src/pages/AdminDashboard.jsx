@@ -243,8 +243,10 @@ const AdminDashboard = () => {
 
       if (updateError) throw updateError;
 
-      const staffName = departmentStaff.find((s) => s.value === selectedStaff)?.label || "Staff";
-      
+      const staffName =
+        departmentStaff.find((s) => s.value === selectedStaff)?.label ||
+        "Staff";
+
       await supabase.from("audit_trail").insert({
         complaint_id: selectedComplaint.id,
         action: "Concern Verified",
@@ -583,7 +585,9 @@ const AdminDashboard = () => {
           </div>
           <div className="bg-white rounded-xl p-4 border border-purple-100 shadow-sm">
             <p className="text-sm text-purple-600">Backlog</p>
-            <p className="text-2xl font-bold text-purple-700">{stats.backlog}</p>
+            <p className="text-2xl font-bold text-purple-700">
+              {stats.backlog}
+            </p>
           </div>
           <div className="bg-white rounded-xl p-4 border border-green-100 shadow-sm">
             <p className="text-sm text-green-600">Resolved</p>
@@ -611,8 +615,12 @@ const AdminDashboard = () => {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm mb-8">
           <div className="p-6 pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Complaints Overview</h3>
-              <p className="text-sm text-gray-500">Showing complaint statistics by status</p>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Complaints Overview
+              </h3>
+              <p className="text-sm text-gray-500">
+                Showing complaint statistics by status
+              </p>
             </div>
             <div className="flex flex-wrap gap-1">
               {[
@@ -646,7 +654,7 @@ const AdminDashboard = () => {
                     // Filter complaints by time range
                     const now = new Date();
                     let filteredComplaints = complaints;
-                    
+
                     if (chartTimeRange !== "all") {
                       const ranges = {
                         "1d": 1,
@@ -657,27 +665,81 @@ const AdminDashboard = () => {
                         "1y": 365,
                       };
                       const daysAgo = ranges[chartTimeRange] || 365;
-                      const cutoffDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+                      const cutoffDate = new Date(
+                        now.getTime() - daysAgo * 24 * 60 * 60 * 1000
+                      );
                       filteredComplaints = complaints.filter(
                         (c) => new Date(c.created_at) >= cutoffDate
                       );
                     }
-                    
+
                     // Calculate stats for filtered data
                     return [
-                      { name: "Submitted", count: filteredComplaints.filter((c) => c.status === "submitted").length, fill: "#3B82F6" },
-                      { name: "Verified", count: filteredComplaints.filter((c) => c.status === "verified").length, fill: "#D4AF37" },
-                      { name: "In Progress", count: filteredComplaints.filter((c) => c.status === "in_progress").length, fill: "#F97316" },
-                      { name: "Backlog", count: filteredComplaints.filter((c) => c.status === "backlog").length, fill: "#8B5CF6" },
-                      { name: "Resolved", count: filteredComplaints.filter((c) => c.status === "resolved").length, fill: "#22C55E" },
-                      { name: "Closed", count: filteredComplaints.filter((c) => c.status === "closed").length, fill: "#6B7280" },
-                      { name: "Disputed", count: filteredComplaints.filter((c) => c.status === "disputed").length, fill: "#F59E0B" },
-                      { name: "Rejected", count: filteredComplaints.filter((c) => c.status === "rejected").length, fill: "#EF4444" },
+                      {
+                        name: "Submitted",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "submitted"
+                        ).length,
+                        fill: "#3B82F6",
+                      },
+                      {
+                        name: "Verified",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "verified"
+                        ).length,
+                        fill: "#D4AF37",
+                      },
+                      {
+                        name: "In Progress",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "in_progress"
+                        ).length,
+                        fill: "#F97316",
+                      },
+                      {
+                        name: "Backlog",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "backlog"
+                        ).length,
+                        fill: "#8B5CF6",
+                      },
+                      {
+                        name: "Resolved",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "resolved"
+                        ).length,
+                        fill: "#22C55E",
+                      },
+                      {
+                        name: "Closed",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "closed"
+                        ).length,
+                        fill: "#6B7280",
+                      },
+                      {
+                        name: "Disputed",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "disputed"
+                        ).length,
+                        fill: "#F59E0B",
+                      },
+                      {
+                        name: "Rejected",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "rejected"
+                        ).length,
+                        fill: "#EF4444",
+                      },
                     ];
                   })()}
                   margin={{ left: -20, right: 12, top: 10, bottom: 0 }}
                 >
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <CartesianGrid
+                    vertical={false}
+                    strokeDasharray="3 3"
+                    stroke="#f0f0f0"
+                  />
                   <XAxis
                     dataKey="name"
                     tickLine={false}
@@ -694,10 +756,10 @@ const AdminDashboard = () => {
                     allowDecimals={false}
                   />
                   <Tooltip
-                    contentStyle={{ 
-                      borderRadius: "8px", 
+                    contentStyle={{
+                      borderRadius: "8px",
                       border: "1px solid #e5e7eb",
-                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
                     }}
                     formatter={(value, name) => [value, "Count"]}
                   />
@@ -718,15 +780,30 @@ const AdminDashboard = () => {
             <div className="flex w-full items-start gap-2 text-sm">
               <div className="grid gap-2">
                 <div className="flex items-center gap-2 leading-none font-medium text-gray-900">
-                  Total: {stats.total} complaints <TrendingUp className="h-4 w-4 text-green-500" />
+                  Total: {stats.total} complaints{" "}
+                  <TrendingUp className="h-4 w-4 text-green-500" />
                 </div>
                 <div className="text-gray-500 flex flex-wrap items-center gap-2 leading-none text-xs">
-                  <span className="text-blue-600">{stats.submitted} submitted</span> •
-                  <span className="text-yellow-600">{stats.verified} verified</span> •
-                  <span className="text-orange-600">{stats.inProgress} in progress</span> •
-                  <span className="text-purple-600">{stats.backlog || 0} backlog</span> •
-                  <span className="text-green-600">{stats.resolved} resolved</span> •
-                  <span className="text-gray-600">{stats.closed} closed</span>
+                  <span className="text-blue-600">
+                    {stats.submitted} submitted
+                  </span>{" "}
+                  •
+                  <span className="text-yellow-600">
+                    {stats.verified} verified
+                  </span>{" "}
+                  •
+                  <span className="text-orange-600">
+                    {stats.inProgress} in progress
+                  </span>{" "}
+                  •
+                  <span className="text-purple-600">
+                    {stats.backlog || 0} backlog
+                  </span>{" "}
+                  •
+                  <span className="text-green-600">
+                    {stats.resolved} resolved
+                  </span>{" "}
+                  •<span className="text-gray-600">{stats.closed} closed</span>
                 </div>
               </div>
             </div>
@@ -1525,7 +1602,9 @@ const AdminDashboard = () => {
                             className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none appearance-none bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <option value="">
-                              {staffLoading ? "Loading staff..." : "Select a staff member..."}
+                              {staffLoading
+                                ? "Loading staff..."
+                                : "Select a staff member..."}
                             </option>
                             {departmentStaff.map((staff) => (
                               <option key={staff.value} value={staff.value}>
@@ -1565,7 +1644,9 @@ const AdminDashboard = () => {
                     <div className="flex space-x-3">
                       <button
                         onClick={handleApprove}
-                        disabled={actionLoading || !selectedDepartment || !selectedStaff}
+                        disabled={
+                          actionLoading || !selectedDepartment || !selectedStaff
+                        }
                         className="flex-1 bg-green-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-green-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {actionLoading ? (
