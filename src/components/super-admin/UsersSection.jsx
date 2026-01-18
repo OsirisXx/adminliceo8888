@@ -84,7 +84,9 @@ const UsersSection = ({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-          <p className="text-gray-500 mt-1">Manage system users and their roles</p>
+          <p className="text-gray-500 mt-1">
+            Manage system users and their roles
+          </p>
         </div>
         <button
           onClick={onAddUser}
@@ -100,7 +102,10 @@ const UsersSection = ({
         <div className="flex flex-col sm:flex-row gap-4">
           {/* Search */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              size={18}
+            />
             <input
               type="text"
               placeholder="Search users..."
@@ -152,11 +157,16 @@ const UsersSection = ({
             <tbody className="divide-y divide-gray-100">
               {filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={user.id}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-maroon-500 to-maroon-700 flex items-center justify-center text-white font-medium">
-                          {user.full_name?.charAt(0) || user.email?.charAt(0) || "U"}
+                          {user.full_name?.charAt(0) ||
+                            user.email?.charAt(0) ||
+                            "U"}
                         </div>
                         <div>
                           <p className="font-medium text-gray-900">
@@ -191,11 +201,19 @@ const UsersSection = ({
                         value={user.department || ""}
                         onChange={async (e) => {
                           setUpdatingUser(user.id);
-                          await onUpdateUser(user.id, { department: e.target.value });
+                          await onUpdateUser(user.id, {
+                            department: e.target.value,
+                          });
                           setUpdatingUser(null);
                         }}
-                        disabled={updatingUser === user.id}
-                        className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 cursor-pointer focus:ring-2 focus:ring-maroon-500 bg-white min-w-[140px]"
+                        disabled={
+                          updatingUser === user.id || user.role === "student"
+                        }
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 focus:ring-2 focus:ring-maroon-500 bg-white min-w-[140px] ${
+                          user.role === "student"
+                            ? "cursor-not-allowed opacity-60"
+                            : "cursor-pointer"
+                        }`}
                       >
                         <option value="">No Department</option>
                         {departments?.map((dept) => (
@@ -210,7 +228,9 @@ const UsersSection = ({
                         value={user.is_active !== false ? "active" : "inactive"}
                         onChange={async (e) => {
                           setUpdatingUser(user.id);
-                          await onUpdateUser(user.id, { is_active: e.target.value === "active" });
+                          await onUpdateUser(user.id, {
+                            is_active: e.target.value === "active",
+                          });
                           setUpdatingUser(null);
                         }}
                         disabled={updatingUser === user.id}

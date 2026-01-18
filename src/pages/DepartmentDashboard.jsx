@@ -46,6 +46,9 @@ const DepartmentDashboard = () => {
   const [departmentInfo, setDepartmentInfo] = useState(null);
   const [newStatus, setNewStatus] = useState("");
   const [showStatusChangeSection, setShowStatusChangeSection] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState("");
+  const [departmentStaff, setDepartmentStaff] = useState([]);
+  const [staffLoading, setStaffLoading] = useState(false);
 
   // Fetch department info from database
   useEffect(() => {
@@ -71,7 +74,11 @@ const DepartmentDashboard = () => {
   const getDepartmentName = () => {
     if (departmentInfo?.name) return departmentInfo.name;
     // Fallback to formatted code
-    return userDepartment?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) || "Department";
+    return (
+      userDepartment
+        ?.replace(/_/g, " ")
+        .replace(/\b\w/g, (l) => l.toUpperCase()) || "Department"
+    );
   };
 
   const statusConfig = {
@@ -107,6 +114,42 @@ const DepartmentDashboard = () => {
     },
   };
 
+  // Fetch staff from the same department
+  useEffect(() => {
+    const fetchDepartmentStaff = async () => {
+      if (!userDepartment) {
+        setDepartmentStaff([]);
+        return;
+      }
+
+      setStaffLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("id, full_name, email, role")
+          .eq("department", userDepartment)
+          .neq("role", "student")
+          .order("full_name");
+
+        if (error) throw error;
+
+        const formattedStaff = (data || []).map((staff) => ({
+          value: staff.id,
+          label: staff.full_name || staff.email,
+          role: staff.role,
+        }));
+        setDepartmentStaff(formattedStaff);
+      } catch (err) {
+        console.error("Error fetching department staff:", err);
+        setDepartmentStaff([]);
+      } finally {
+        setStaffLoading(false);
+      }
+    };
+
+    fetchDepartmentStaff();
+  }, [userDepartment]);
+
   useEffect(() => {
     if (user?.id) {
       fetchComplaints();
@@ -120,7 +163,14 @@ const DepartmentDashboard = () => {
         .from("complaints")
         .select("*")
         .eq("assigned_to", user.id)
-        .in("status", ["verified", "in_progress", "backlog", "resolved", "closed", "disputed"])
+        .in("status", [
+          "verified",
+          "in_progress",
+          "backlog",
+          "resolved",
+          "closed",
+          "disputed",
+        ])
         .order("created_at", { ascending: false });
 
       if (filterStatus !== "all") {
@@ -141,25 +191,38 @@ const DepartmentDashboard = () => {
   const handleStartProgress = async () => {
     setActionLoading(true);
     try {
+      const updateData = {
+        status: "in_progress",
+        department_remarks: departmentRemarks,
+        started_at: new Date().toISOString(),
+        started_by: user.id,
+      };
+
+      // If staff member is selected, reassign to them
+      if (selectedStaff) {
+        updateData.assigned_to = selectedStaff;
+      }
+
       const { error: updateError } = await supabase
         .from("complaints")
-        .update({
-          status: "in_progress",
-          department_remarks: departmentRemarks,
-          started_at: new Date().toISOString(),
-          started_by: user.id,
-        })
+        .update(updateData)
         .eq("id", selectedComplaint.id);
 
       if (updateError) throw updateError;
+
+      const staffName = selectedStaff
+        ? departmentStaff.find((s) => s.value === selectedStaff)?.label
+        : null;
 
       await supabase.from("audit_trail").insert({
         complaint_id: selectedComplaint.id,
         action: "Started Processing",
         performed_by: user.id,
-        details: departmentRemarks
-          ? `Remarks: ${departmentRemarks}`
-          : "Department started working on the complaint",
+        details: `${staffName ? `Assigned to ${staffName}. ` : ""}${
+          departmentRemarks
+            ? `Remarks: ${departmentRemarks}`
+            : "Department started working on the complaint"
+        }`,
       });
 
       // Send email notification if user provided email
@@ -176,6 +239,7 @@ const DepartmentDashboard = () => {
       setShowModal(false);
       setSelectedComplaint(null);
       setDepartmentRemarks("");
+      setSelectedStaff("");
       fetchComplaints();
     } catch (err) {
       console.error("Error updating complaint:", err);
@@ -212,8 +276,9 @@ const DepartmentDashboard = () => {
       let resolutionImageUrl = null;
       if (resolutionImage) {
         const fileExt = resolutionImage.name.split(".").pop();
-        const fileName = `resolution-${selectedComplaint.reference_number
-          }-${Date.now()}.${fileExt}`;
+        const fileName = `resolution-${
+          selectedComplaint.reference_number
+        }-${Date.now()}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from("attachments")
@@ -247,7 +312,9 @@ const DepartmentDashboard = () => {
         complaint_id: selectedComplaint.id,
         action: "Complaint Resolved",
         performed_by: user.id,
-        details: resolutionDetails ? `Resolution: ${resolutionDetails}` : "Complaint marked as resolved",
+        details: resolutionDetails
+          ? `Resolution: ${resolutionDetails}`
+          : "Complaint marked as resolved",
       });
 
       // Send email notification if user provided email
@@ -287,7 +354,8 @@ const DepartmentDashboard = () => {
         .from("complaints")
         .update({
           status: newStatus,
-          department_remarks: departmentRemarks || selectedComplaint.department_remarks,
+          department_remarks:
+            departmentRemarks || selectedComplaint.department_remarks,
         })
         .eq("id", selectedComplaint.id);
 
@@ -320,7 +388,9 @@ const DepartmentDashboard = () => {
           await sendTicketStatusChangedEmail({
             to: selectedComplaint.email,
             referenceNumber: selectedComplaint.reference_number,
-            oldStatus: statusLabels[selectedComplaint.status] || selectedComplaint.status,
+            oldStatus:
+              statusLabels[selectedComplaint.status] ||
+              selectedComplaint.status,
             newStatus: statusLabels[newStatus] || newStatus,
             remarks: departmentRemarks,
           });
@@ -431,9 +501,7 @@ const DepartmentDashboard = () => {
               <h1 className="text-2xl font-bold text-gray-900">
                 Department Dashboard
               </h1>
-              <p className="text-gray-600">
-                {getDepartmentName()}
-              </p>
+              <p className="text-gray-600">{getDepartmentName()}</p>
             </div>
           </div>
         </div>
@@ -450,15 +518,21 @@ const DepartmentDashboard = () => {
           </div>
           <div className="bg-white rounded-xl p-4 border border-orange-100 shadow-sm">
             <p className="text-sm text-orange-600">In Progress</p>
-            <p className="text-2xl font-bold text-orange-700">{stats.inProgress}</p>
+            <p className="text-2xl font-bold text-orange-700">
+              {stats.inProgress}
+            </p>
           </div>
           <div className="bg-white rounded-xl p-4 border border-purple-100 shadow-sm">
             <p className="text-sm text-purple-600">Backlog</p>
-            <p className="text-2xl font-bold text-purple-700">{stats.backlog}</p>
+            <p className="text-2xl font-bold text-purple-700">
+              {stats.backlog}
+            </p>
           </div>
           <div className="bg-white rounded-xl p-4 border border-green-100 shadow-sm">
             <p className="text-sm text-green-600">Resolved</p>
-            <p className="text-2xl font-bold text-green-700">{stats.resolved}</p>
+            <p className="text-2xl font-bold text-green-700">
+              {stats.resolved}
+            </p>
           </div>
           <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <p className="text-sm text-gray-600">Closed</p>
@@ -466,7 +540,9 @@ const DepartmentDashboard = () => {
           </div>
           <div className="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
             <p className="text-sm text-amber-600">Disputed</p>
-            <p className="text-2xl font-bold text-amber-700">{stats.disputed}</p>
+            <p className="text-2xl font-bold text-amber-700">
+              {stats.disputed}
+            </p>
           </div>
           <div className="bg-white rounded-xl p-4 border border-red-100 shadow-sm">
             <p className="text-sm text-red-600">Rejected</p>
@@ -646,7 +722,9 @@ const DepartmentDashboard = () => {
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                       <button
-                        onClick={() => navigate(`/ticket/${complaint.reference_number}`)}
+                        onClick={() =>
+                          navigate(`/ticket/${complaint.reference_number}`)
+                        }
                         className="inline-flex items-center space-x-2 px-4 py-2 border border-maroon-800 text-maroon-800 rounded-lg hover:bg-maroon-50 transition-colors text-sm font-medium w-full sm:w-auto justify-center"
                       >
                         <MessageSquare size={16} />
@@ -704,7 +782,9 @@ const DepartmentDashboard = () => {
                   <span className="text-sm text-gray-500">Current Status</span>
                   <div className="flex items-center gap-2">
                     <span
-                      className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${statusConfig[selectedComplaint.status]?.color}`}
+                      className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${
+                        statusConfig[selectedComplaint.status]?.color
+                      }`}
                     >
                       {statusConfig[selectedComplaint.status]?.label}
                     </span>
@@ -762,7 +842,8 @@ const DepartmentDashboard = () => {
                 {newStatus && newStatus !== selectedComplaint.status && (
                   <div className="bg-gray-50 rounded-xl p-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Remarks for Status Change <span className="text-gray-400">(optional)</span>
+                      Remarks for Status Change{" "}
+                      <span className="text-gray-400">(optional)</span>
                     </label>
                     <textarea
                       value={departmentRemarks}
@@ -858,6 +939,42 @@ const DepartmentDashboard = () => {
                       Take Action
                     </h3>
 
+                    {/* Assign to Staff Member */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Assign to Staff Member{" "}
+                        <span className="text-gray-400">(optional)</span>
+                      </label>
+                      <div className="relative">
+                        <User
+                          size={20}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                        />
+                        <select
+                          value={selectedStaff}
+                          onChange={(e) => setSelectedStaff(e.target.value)}
+                          disabled={staffLoading}
+                          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <option value="">
+                            {staffLoading
+                              ? "Loading staff..."
+                              : "Select a staff member (or keep for yourself)"}
+                          </option>
+                          {departmentStaff.map((staff) => (
+                            <option key={staff.value} value={staff.value}>
+                              {staff.label} ({staff.role})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {departmentStaff.length === 0 && !staffLoading && (
+                        <p className="text-sm text-amber-600 mt-2">
+                          No other staff members found in this department.
+                        </p>
+                      )}
+                    </div>
+
                     {/* Remarks */}
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -933,10 +1050,11 @@ const DepartmentDashboard = () => {
                         />
                         <label
                           htmlFor="resolutionImage"
-                          className={`flex items-center justify-center space-x-2 w-full py-4 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${resolutionImage
+                          className={`flex items-center justify-center space-x-2 w-full py-4 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
+                            resolutionImage
                               ? "border-green-400 bg-green-50"
                               : "border-gray-300 hover:border-green-400 hover:bg-gray-50"
-                            }`}
+                          }`}
                         >
                           <Upload
                             size={20}
