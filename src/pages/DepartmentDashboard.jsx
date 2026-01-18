@@ -25,7 +25,24 @@ import {
   Tag,
   User,
   AlertCircle,
+  ArrowUpDown,
+  LayoutGrid,
+  LayoutList,
+  Minimize2,
+  Maximize2,
+  ChevronLeft,
+  ChevronRight,
+  Columns,
 } from "lucide-react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 const DepartmentDashboard = () => {
   const navigate = useNavigate();
@@ -49,6 +66,13 @@ const DepartmentDashboard = () => {
   const [selectedStaff, setSelectedStaff] = useState("");
   const [departmentStaff, setDepartmentStaff] = useState([]);
   const [staffLoading, setStaffLoading] = useState(false);
+  const [chartTimeRange, setChartTimeRange] = useState("all");
+  const [sortOrder, setSortOrder] = useState("newest");
+  const [viewMode, setViewMode] = useState("expanded");
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [paginationEnabled, setPaginationEnabled] = useState(true);
+  const [columnCount, setColumnCount] = useState(1);
 
   // Fetch department info from database
   useEffect(() => {
@@ -477,6 +501,34 @@ const DepartmentDashboard = () => {
     return matchesSearch && matchesCategory && matchesDate;
   });
 
+  // Sort complaints
+  const sortedComplaints = [...filteredComplaints].sort((a, b) => {
+    const dateA = new Date(a.created_at);
+    const dateB = new Date(b.created_at);
+    return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
+  });
+
+  // Pagination
+  const totalPages = Math.ceil(sortedComplaints.length / itemsPerPage);
+  const paginatedComplaints = paginationEnabled
+    ? sortedComplaints.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+      )
+    : sortedComplaints;
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    filterStatus,
+    filterCategory,
+    filterDateRange,
+    searchQuery,
+    sortOrder,
+    itemsPerPage,
+  ]);
+
   const stats = {
     total: complaints.length,
     pending: complaints.filter((c) => c.status === "verified").length,
@@ -550,6 +602,321 @@ const DepartmentDashboard = () => {
           </div>
         </div>
 
+        {/* Complaints Trend Area Chart */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm mb-8">
+          <div className="p-6 pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Complaints Overview
+              </h3>
+              <p className="text-sm text-gray-500">
+                Showing complaint statistics by status
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {[
+                { value: "1d", label: "1D" },
+                { value: "7d", label: "7D" },
+                { value: "1m", label: "1M" },
+                { value: "3m", label: "3M" },
+                { value: "6m", label: "6M" },
+                { value: "1y", label: "1Y" },
+                { value: "all", label: "All" },
+              ].map((range) => (
+                <button
+                  key={range.value}
+                  onClick={() => setChartTimeRange(range.value)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                    chartTimeRange === range.value
+                      ? "bg-maroon-800 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {range.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="p-6 pt-0">
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={(() => {
+                    // Filter complaints by time range
+                    const now = new Date();
+                    let filteredComplaints = complaints;
+
+                    if (chartTimeRange !== "all") {
+                      const ranges = {
+                        "1d": 1,
+                        "7d": 7,
+                        "1m": 30,
+                        "3m": 90,
+                        "6m": 180,
+                        "1y": 365,
+                      };
+                      const daysAgo = ranges[chartTimeRange] || 365;
+                      const cutoffDate = new Date(
+                        now.getTime() - daysAgo * 24 * 60 * 60 * 1000
+                      );
+                      filteredComplaints = complaints.filter(
+                        (c) => new Date(c.created_at) >= cutoffDate
+                      );
+                    }
+
+                    // Calculate stats for filtered data
+                    return [
+                      {
+                        name: "Pending",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "verified"
+                        ).length,
+                        fill: "#D4AF37",
+                      },
+                      {
+                        name: "In Progress",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "in_progress"
+                        ).length,
+                        fill: "#F97316",
+                      },
+                      {
+                        name: "Backlog",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "backlog"
+                        ).length,
+                        fill: "#8B5CF6",
+                      },
+                      {
+                        name: "Resolved",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "resolved"
+                        ).length,
+                        fill: "#22C55E",
+                      },
+                      {
+                        name: "Closed",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "closed"
+                        ).length,
+                        fill: "#6B7280",
+                      },
+                      {
+                        name: "Disputed",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "disputed"
+                        ).length,
+                        fill: "#F59E0B",
+                      },
+                      {
+                        name: "Rejected",
+                        count: filteredComplaints.filter(
+                          (c) => c.status === "rejected"
+                        ).length,
+                        fill: "#EF4444",
+                      },
+                    ];
+                  })()}
+                  margin={{ left: -20, right: 12, top: 10, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    vertical={false}
+                    strokeDasharray="3 3"
+                    stroke="#f0f0f0"
+                  />
+                  <XAxis
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(value) => value.slice(0, 3)}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tickCount={5}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "1px solid #e5e7eb",
+                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                    }}
+                    formatter={(value, name) => [value, "Count"]}
+                  />
+                  <Area
+                    dataKey="count"
+                    type="monotone"
+                    fill="#7C2D2D"
+                    fillOpacity={0.4}
+                    stroke="#7C2D2D"
+                    strokeWidth={2}
+                    name="Complaints"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="px-6 pb-6 pt-2 border-t border-gray-100">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
+              <span className="font-medium text-gray-700">
+                Total:{" "}
+                {(() => {
+                  const now = new Date();
+                  let filteredComplaints = complaints;
+                  if (chartTimeRange !== "all") {
+                    const ranges = {
+                      "1d": 1,
+                      "7d": 7,
+                      "1m": 30,
+                      "3m": 90,
+                      "6m": 180,
+                      "1y": 365,
+                    };
+                    const daysAgo = ranges[chartTimeRange] || 365;
+                    const cutoffDate = new Date(
+                      now.getTime() - daysAgo * 24 * 60 * 60 * 1000
+                    );
+                    filteredComplaints = complaints.filter(
+                      (c) => new Date(c.created_at) >= cutoffDate
+                    );
+                  }
+                  return filteredComplaints.length;
+                })()}{" "}
+                complaints
+              </span>
+              <span className="text-gold-600">
+                {(() => {
+                  const now = new Date();
+                  let filteredComplaints = complaints;
+                  if (chartTimeRange !== "all") {
+                    const ranges = {
+                      "1d": 1,
+                      "7d": 7,
+                      "1m": 30,
+                      "3m": 90,
+                      "6m": 180,
+                      "1y": 365,
+                    };
+                    const daysAgo = ranges[chartTimeRange] || 365;
+                    const cutoffDate = new Date(
+                      now.getTime() - daysAgo * 24 * 60 * 60 * 1000
+                    );
+                    filteredComplaints = complaints.filter(
+                      (c) => new Date(c.created_at) >= cutoffDate
+                    );
+                  }
+                  return filteredComplaints.filter((c) => c.status === "verified").length;
+                })()}{" "}
+                pending
+              </span>
+              <span className="text-orange-600">
+                {(() => {
+                  const now = new Date();
+                  let filteredComplaints = complaints;
+                  if (chartTimeRange !== "all") {
+                    const ranges = {
+                      "1d": 1,
+                      "7d": 7,
+                      "1m": 30,
+                      "3m": 90,
+                      "6m": 180,
+                      "1y": 365,
+                    };
+                    const daysAgo = ranges[chartTimeRange] || 365;
+                    const cutoffDate = new Date(
+                      now.getTime() - daysAgo * 24 * 60 * 60 * 1000
+                    );
+                    filteredComplaints = complaints.filter(
+                      (c) => new Date(c.created_at) >= cutoffDate
+                    );
+                  }
+                  return filteredComplaints.filter((c) => c.status === "in_progress").length;
+                })()}{" "}
+                in progress
+              </span>
+              <span className="text-purple-600">
+                {(() => {
+                  const now = new Date();
+                  let filteredComplaints = complaints;
+                  if (chartTimeRange !== "all") {
+                    const ranges = {
+                      "1d": 1,
+                      "7d": 7,
+                      "1m": 30,
+                      "3m": 90,
+                      "6m": 180,
+                      "1y": 365,
+                    };
+                    const daysAgo = ranges[chartTimeRange] || 365;
+                    const cutoffDate = new Date(
+                      now.getTime() - daysAgo * 24 * 60 * 60 * 1000
+                    );
+                    filteredComplaints = complaints.filter(
+                      (c) => new Date(c.created_at) >= cutoffDate
+                    );
+                  }
+                  return filteredComplaints.filter((c) => c.status === "backlog").length;
+                })()}{" "}
+                backlog
+              </span>
+              <span className="text-green-600">
+                {(() => {
+                  const now = new Date();
+                  let filteredComplaints = complaints;
+                  if (chartTimeRange !== "all") {
+                    const ranges = {
+                      "1d": 1,
+                      "7d": 7,
+                      "1m": 30,
+                      "3m": 90,
+                      "6m": 180,
+                      "1y": 365,
+                    };
+                    const daysAgo = ranges[chartTimeRange] || 365;
+                    const cutoffDate = new Date(
+                      now.getTime() - daysAgo * 24 * 60 * 60 * 1000
+                    );
+                    filteredComplaints = complaints.filter(
+                      (c) => new Date(c.created_at) >= cutoffDate
+                    );
+                  }
+                  return filteredComplaints.filter((c) => c.status === "resolved").length;
+                })()}{" "}
+                resolved
+              </span>
+              <span className="text-gray-600">
+                {(() => {
+                  const now = new Date();
+                  let filteredComplaints = complaints;
+                  if (chartTimeRange !== "all") {
+                    const ranges = {
+                      "1d": 1,
+                      "7d": 7,
+                      "1m": 30,
+                      "3m": 90,
+                      "6m": 180,
+                      "1y": 365,
+                    };
+                    const daysAgo = ranges[chartTimeRange] || 365;
+                    const cutoffDate = new Date(
+                      now.getTime() - daysAgo * 24 * 60 * 60 * 1000
+                    );
+                    filteredComplaints = complaints.filter(
+                      (c) => new Date(c.created_at) >= cutoffDate
+                    );
+                  }
+                  return filteredComplaints.filter((c) => c.status === "closed").length;
+                })()}{" "}
+                closed
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Filters */}
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm mb-6">
           <div className="flex flex-col gap-4">
@@ -568,27 +935,28 @@ const DepartmentDashboard = () => {
               />
             </div>
             {/* Filter Row */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center space-x-2">
                 <Filter size={18} className="text-gray-400" />
-                <span className="text-sm text-gray-500 hidden sm:inline">
-                  Filters:
-                </span>
+                <span className="text-sm text-gray-500">Filters:</span>
               </div>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white text-sm flex-1 sm:flex-none"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white text-sm"
               >
                 <option value="all">All Status</option>
                 <option value="verified">Pending</option>
                 <option value="in_progress">In Progress</option>
+                <option value="backlog">Backlog</option>
                 <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+                <option value="disputed">Disputed</option>
               </select>
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white text-sm flex-1 sm:flex-none"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white text-sm"
               >
                 {categories.map((cat) => (
                   <option key={cat.value} value={cat.value}>
@@ -599,7 +967,7 @@ const DepartmentDashboard = () => {
               <select
                 value={filterDateRange}
                 onChange={(e) => setFilterDateRange(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white text-sm flex-1 sm:flex-none"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white text-sm"
               >
                 {dateRanges.map((range) => (
                   <option key={range.value} value={range.value}>
@@ -614,22 +982,130 @@ const DepartmentDashboard = () => {
               >
                 <RefreshCw size={18} className="text-gray-600" />
               </button>
-              <span className="text-sm text-gray-500 w-full sm:w-auto sm:ml-auto mt-2 sm:mt-0">
-                {filteredComplaints.length} complaint
-                {filteredComplaints.length !== 1 ? "s" : ""}
+            </div>
+
+            {/* Layout & Sort Controls */}
+            <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-100">
+              {/* Sort Order */}
+              <div className="flex items-center gap-2">
+                <ArrowUpDown size={16} className="text-gray-400" />
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white text-sm"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                </select>
+              </div>
+
+              {/* View Mode Toggle */}
+              <button
+                onClick={() =>
+                  setViewMode(viewMode === "expanded" ? "compact" : "expanded")
+                }
+                className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg text-sm font-medium transition-colors hover:bg-gray-200"
+                title={
+                  viewMode === "expanded"
+                    ? "Switch to Compact View"
+                    : "Switch to Expanded View"
+                }
+              >
+                {viewMode === "expanded" ? (
+                  <>
+                    <Minimize2 size={16} className="text-gray-600" />
+                    <span className="text-gray-700">Minimize</span>
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 size={16} className="text-maroon-800" />
+                    <span className="text-maroon-800">Expand</span>
+                  </>
+                )}
+              </button>
+
+              {/* Column Count Selector */}
+              <div className="flex items-center gap-2">
+                <Columns size={16} className="text-gray-400" />
+                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                  {[1, 2, 3, 4].map((cols) => (
+                    <button
+                      key={cols}
+                      onClick={() => setColumnCount(cols)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        columnCount === cols
+                          ? "bg-white shadow-sm text-maroon-800"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      {cols}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pagination Toggle */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPaginationEnabled(!paginationEnabled)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    paginationEnabled
+                      ? "bg-maroon-100 text-maroon-800"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  <LayoutGrid size={16} />
+                  <span>Pagination {paginationEnabled ? "On" : "Off"}</span>
+                </button>
+              </div>
+
+              {/* Items Per Page - only show when pagination is enabled */}
+              {paginationEnabled && (
+                <div className="flex items-center gap-2">
+                  <LayoutList size={16} className="text-gray-400" />
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white text-sm"
+                  >
+                    <option value={5}>5 per page</option>
+                    <option value={10}>10 per page</option>
+                    <option value={20}>20 per page</option>
+                    <option value={50}>50 per page</option>
+                  </select>
+                </div>
+              )}
+
+              <span className="text-sm text-gray-500 ml-auto">
+                {paginationEnabled
+                  ? `Showing ${paginatedComplaints.length} of ${filteredComplaints.length}`
+                  : `${filteredComplaints.length}`}{" "}
+                concern{filteredComplaints.length !== 1 ? "s" : ""}
               </span>
             </div>
           </div>
         </div>
 
         {/* Complaints Newsfeed */}
-        <div className="space-y-4">
+        <div
+          className={`${
+            columnCount === 1
+              ? "space-y-4"
+              : `grid gap-4 ${
+                  columnCount === 2
+                    ? "grid-cols-1 md:grid-cols-2"
+                    : columnCount === 3
+                    ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+                    : "grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
+                }`
+          }`}
+        >
           {loading ? (
             <div className="bg-white rounded-xl p-12 text-center border border-gray-100 shadow-sm">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-maroon-800 border-t-transparent mx-auto"></div>
               <p className="text-gray-500 mt-4">Loading complaints...</p>
             </div>
-          ) : filteredComplaints.length === 0 ? (
+          ) : paginatedComplaints.length === 0 ? (
             <div className="bg-white rounded-xl p-12 text-center border border-gray-100 shadow-sm">
               <FileText size={48} className="text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">
@@ -637,66 +1113,217 @@ const DepartmentDashboard = () => {
               </p>
             </div>
           ) : (
-            filteredComplaints.map((complaint) => {
+            paginatedComplaints.map((complaint) => {
               const status = statusConfig[complaint.status];
               const StatusIcon = status?.icon || FileText;
+
+              if (viewMode === "compact") {
+                return (
+                  <div
+                    key={complaint.id}
+                    className="bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 p-3"
+                  >
+                    {columnCount === 1 ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0 flex-wrap">
+                          <span
+                            className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${status?.color}`}
+                          >
+                            <StatusIcon size={12} />
+                            <span>{status?.label}</span>
+                          </span>
+                          <span className="font-mono text-xs text-maroon-800 bg-maroon-50 px-2 py-1 rounded">
+                            {complaint.reference_number}
+                          </span>
+                          <span className="text-sm text-gray-900 truncate font-medium">
+                            {complaint.name}
+                          </span>
+                          <span className="text-xs text-gray-500 capitalize hidden sm:inline">
+                            {complaint.category}
+                          </span>
+                          <span className="text-xs text-gray-400 hidden md:inline">
+                            {formatDate(complaint.created_at)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              navigate(`/ticket/${complaint.reference_number}`)
+                            }
+                            className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                            title="View Activity"
+                          >
+                            <MessageSquare size={16} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedComplaint(complaint);
+                              setShowModal(true);
+                            }}
+                            className="p-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors"
+                            title="View Details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col h-full">
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span
+                            className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${status?.color}`}
+                          >
+                            <StatusIcon size={12} />
+                            <span>{status?.label}</span>
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {formatDate(complaint.created_at)}
+                          </span>
+                        </div>
+                        <span className="font-mono text-xs text-maroon-800 bg-maroon-50 px-2 py-1 rounded inline-block mb-2 w-fit">
+                          {complaint.reference_number}
+                        </span>
+                        <p className="text-sm text-gray-900 font-medium truncate mb-1">
+                          {complaint.name}
+                        </p>
+                        <p className="text-xs text-gray-500 capitalize mb-3">
+                          {complaint.category}
+                        </p>
+                        <div className="flex items-center gap-2 mt-auto">
+                          <button
+                            onClick={() =>
+                              navigate(`/ticket/${complaint.reference_number}`)
+                            }
+                            className="flex-1 p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-xs flex items-center justify-center gap-1"
+                            title="View Activity"
+                          >
+                            <MessageSquare size={14} />
+                            <span className={columnCount >= 3 ? "hidden" : ""}>
+                              Activity
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedComplaint(complaint);
+                              setShowModal(true);
+                            }}
+                            className="flex-1 p-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors text-xs flex items-center justify-center gap-1"
+                            title="View Details"
+                          >
+                            <Eye size={14} />
+                            <span className={columnCount >= 3 ? "hidden" : ""}>
+                              Details
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              const isMultiColumn = columnCount >= 2;
+              const isNarrowColumn = columnCount >= 3;
+
               return (
                 <div
                   key={complaint.id}
-                  className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
+                  className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col"
                 >
                   {/* Card Header */}
-                  <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div
+                    className={`${
+                      isNarrowColumn ? "px-3 py-3" : "px-4 sm:px-6 py-4"
+                    } border-b border-gray-100 flex ${
+                      isMultiColumn
+                        ? "flex-col gap-2"
+                        : "flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    }`}
+                  >
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-maroon-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <User size={20} className="text-maroon-800" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">
+                      {!isNarrowColumn && (
+                        <div className="w-10 h-10 bg-maroon-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <User size={20} className="text-maroon-800" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={`font-semibold text-gray-900 truncate ${
+                            isNarrowColumn ? "text-sm" : ""
+                          }`}
+                        >
                           {complaint.name}
                         </p>
-                        <p className="text-sm text-gray-500 truncate">
-                          {complaint.email || "No email provided"}
-                        </p>
+                        {!isNarrowColumn && (
+                          <p className="text-sm text-gray-500 truncate">
+                            {complaint.email || "No email provided"}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <span
-                      className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-medium self-start sm:self-center ${status?.color}`}
+                      className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium self-start ${status?.color}`}
                     >
-                      <StatusIcon size={14} />
+                      <StatusIcon size={12} />
                       <span>{status?.label}</span>
                     </span>
                   </div>
 
                   {/* Card Body */}
-                  <div className="px-4 sm:px-6 py-4">
+                  <div
+                    className={`${
+                      isNarrowColumn ? "px-3 py-3" : "px-4 sm:px-6 py-4"
+                    } flex-1`}
+                  >
                     {/* Reference & Category */}
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
-                      <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-maroon-50 text-maroon-800 rounded-lg text-xs font-mono font-medium">
-                        <FileText size={12} />
-                        <span className="truncate max-w-[120px] sm:max-w-none">
+                    <div
+                      className={`flex flex-wrap items-center gap-2 ${
+                        isNarrowColumn ? "mb-2" : "mb-3"
+                      }`}
+                    >
+                      <span
+                        className={`inline-flex items-center space-x-1 px-2 py-1 bg-maroon-50 text-maroon-800 rounded text-xs font-mono font-medium ${
+                          isNarrowColumn ? "text-[10px]" : ""
+                        }`}
+                      >
+                        <FileText size={isNarrowColumn ? 10 : 12} />
+                        <span className="truncate max-w-[100px]">
                           {complaint.reference_number}
                         </span>
                       </span>
-                      <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs capitalize">
-                        <Tag size={12} />
+                      <span
+                        className={`inline-flex items-center space-x-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs capitalize ${
+                          isNarrowColumn ? "text-[10px]" : ""
+                        }`}
+                      >
+                        <Tag size={isNarrowColumn ? 10 : 12} />
                         <span>{complaint.category}</span>
-                      </span>
-                      <span className="inline-flex items-center space-x-1.5 text-xs text-gray-500">
-                        <Calendar size={12} />
-                        <span>{formatDate(complaint.created_at)}</span>
                       </span>
                     </div>
 
+                    {/* Date */}
+                    <div
+                      className={`flex items-center space-x-1 text-xs text-gray-500 ${
+                        isNarrowColumn ? "mb-2" : "mb-3"
+                      }`}
+                    >
+                      <Calendar size={isNarrowColumn ? 10 : 12} />
+                      <span>{formatDate(complaint.created_at)}</span>
+                    </div>
+
                     {/* Description Preview */}
-                    <div className="mb-4">
-                      <p className="text-gray-700 line-clamp-2 text-sm sm:text-base">
+                    <div className={isNarrowColumn ? "mb-2" : "mb-4"}>
+                      <p
+                        className={`text-gray-700 line-clamp-2 ${
+                          isNarrowColumn ? "text-xs" : "text-sm sm:text-base"
+                        }`}
+                      >
                         {complaint.description}
                       </p>
                     </div>
 
                     {/* Attachment indicator */}
-                    {complaint.attachment_url && (
+                    {complaint.attachment_url && !isNarrowColumn && (
                       <div className="flex items-center space-x-2 text-sm text-gray-500 mb-4">
                         <Image size={16} />
                         <span>Has attachment</span>
@@ -704,7 +1331,7 @@ const DepartmentDashboard = () => {
                     )}
 
                     {/* Admin Remarks (if any) */}
-                    {complaint.admin_remarks && (
+                    {complaint.admin_remarks && !isNarrowColumn && (
                       <div className="flex items-center space-x-2 text-sm text-gold-700 bg-gold-50 px-3 py-2 rounded-lg mb-4">
                         <MessageSquare size={16} />
                         <span className="truncate">
@@ -715,30 +1342,48 @@ const DepartmentDashboard = () => {
                   </div>
 
                   {/* Card Footer */}
-                  <div className="px-4 sm:px-6 py-3 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <div className="flex items-center space-x-2 text-sm text-gray-500">
-                      <MessageSquare size={16} />
-                      <span>Complaint #{complaint.id}</span>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <div
+                    className={`${
+                      isNarrowColumn ? "px-3 py-2" : "px-4 sm:px-6 py-3"
+                    } bg-gray-50 border-t border-gray-100 flex ${
+                      isMultiColumn
+                        ? "flex-col gap-2"
+                        : "flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                    }`}
+                  >
+                    {!isNarrowColumn && (
+                      <div className="flex items-center space-x-2 text-sm text-gray-500">
+                        <MessageSquare size={16} />
+                        <span>Complaint #{complaint.id}</span>
+                      </div>
+                    )}
+                    <div
+                      className={`flex gap-2 ${
+                        isMultiColumn ? "w-full" : "w-full sm:w-auto"
+                      }`}
+                    >
                       <button
                         onClick={() =>
                           navigate(`/ticket/${complaint.reference_number}`)
                         }
-                        className="inline-flex items-center space-x-2 px-4 py-2 border border-maroon-800 text-maroon-800 rounded-lg hover:bg-maroon-50 transition-colors text-sm font-medium w-full sm:w-auto justify-center"
+                        className={`inline-flex items-center justify-center space-x-1 px-3 py-2 border border-maroon-800 text-maroon-800 rounded-lg hover:bg-maroon-50 transition-colors font-medium ${
+                          isMultiColumn ? "flex-1 text-xs" : "text-sm"
+                        }`}
                       >
-                        <MessageSquare size={16} />
-                        <span>View Activity</span>
+                        <MessageSquare size={isNarrowColumn ? 14 : 16} />
+                        {!isNarrowColumn && <span>View Activity</span>}
                       </button>
                       <button
                         onClick={() => {
                           setSelectedComplaint(complaint);
                           setShowModal(true);
                         }}
-                        className="inline-flex items-center space-x-2 px-4 py-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors text-sm font-medium w-full sm:w-auto justify-center"
+                        className={`inline-flex items-center justify-center space-x-1 px-3 py-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors font-medium ${
+                          isMultiColumn ? "flex-1 text-xs" : "text-sm"
+                        }`}
                       >
-                        <Eye size={16} />
-                        <span>View Details</span>
+                        <Eye size={isNarrowColumn ? 14 : 16} />
+                        {!isNarrowColumn && <span>View Details</span>}
                       </button>
                     </div>
                   </div>
@@ -747,6 +1392,53 @@ const DepartmentDashboard = () => {
             })
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {paginationEnabled && totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft size={18} className="text-gray-600" />
+            </button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      currentPage === pageNum
+                        ? "bg-maroon-800 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight size={18} className="text-gray-600" />
+            </button>
+          </div>
+        )}
 
         {/* Modal */}
         {showModal && selectedComplaint && (
